@@ -5,6 +5,7 @@ Manter `ai-context/`, os ADRs, o glossário e as especificações plenamente sin
 
 ## Pré-condições
 - Fluxo contínuo e obrigatório — roda ao final de toda fase ou entrega relevante, não é opcional.
+- **Skills do Claude Code a invocar**: `ecc:architecture-decision-records` (formato/lifecycle de ADR), `ecc:living-docs-governance` (sincronização doc-código).
 
 ## Passos
 1. Ao concluir uma fase: atualizar `docs/roadmap.md` com o status real (não aspiracional).

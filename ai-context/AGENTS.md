@@ -13,7 +13,7 @@ Documento normativo completo: [`../ARQUITERURA/Uso interno — Documento de plan
 ## 2. Protocolo determinístico de execução
 
 1. **Leitura de contexto mestre** — este arquivo + o documento normativo — antes de gerar qualquer arquivo ou migration.
-2. **Consulta ao playbook da skill correspondente** em `ai-context/skills/` e a `ai-context/conventions.md` antes de iniciar qualquer tarefa técnica.
+2. **Consulta ao playbook da skill correspondente** em `ai-context/skills/` e a `ai-context/conventions.md` antes de iniciar qualquer tarefa técnica. Cada playbook lista, em "Pré-condições", quais **Skills do Claude Code** (ferramenta `Skill`) devem ser invocadas de fato durante aquela tarefa (ex.: `supabase`, `shadcn`, `vercel:nextjs`, `playwright-cli`) — o playbook é o "o quê/por quê" do projeto; a Skill do Claude Code é o "como" técnico atualizado da ferramenta.
 3. **Execução sequencial estrita por fase** — ver `docs/roadmap.md`. Proibido avançar de fase sem cumprir 100% do DoD e do checklist da fase corrente.
 4. **Atualização documental contínua** — ao concluir uma fase, atualizar `docs/` e `ai-context/` antes de pedir homologação.
 5. **ADR para toda decisão de arquitetura** — nunca editar um ADR já homologado; decisões novas substituem as antigas via ADR subsequente (ver `docs/adr/`).

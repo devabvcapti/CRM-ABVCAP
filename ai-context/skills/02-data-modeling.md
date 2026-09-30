@@ -7,6 +7,7 @@ Traduzir o modelo de dados (Anexo B do documento normativo) em migrations SQL ve
 - Skill 01 (scaffolding) concluída — projeto Supabase inicializado.
 - Skill 03 (security-rls) carregada em paralelo — **nenhuma tabela nasce sem RLS no mesmo arquivo**.
 - Anexo B do documento normativo consultado para a entidade em questão.
+- **Skills do Claude Code a invocar**: `supabase`, `data:sql-queries`.
 
 ## Passos
 1. Uma migration numerada por unidade lógica de mudança (`NNN_descricao.sql`).

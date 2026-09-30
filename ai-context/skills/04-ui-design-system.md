@@ -7,6 +7,7 @@ Construir componentes via `shadcn/ui` e Tailwind — entity cards, badges semân
 - Skill 01 concluída (`shadcn/ui` instalado).
 - Tokens de design centralizados em `src/styles/`.
 - Especificação funcional do módulo aprovada em `docs/specs/`.
+- **Skills do Claude Code a invocar**: `shadcn`, `frontend-design`, `design:design-system` (para consistência de tokens entre telas).
 
 ## Passos
 1. Gerar primitivos via CLI do `shadcn/ui` em `src/components/ui/` — nunca editar manualmente.

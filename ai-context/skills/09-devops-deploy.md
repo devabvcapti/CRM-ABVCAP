@@ -6,6 +6,7 @@ Gerenciar pipelines de CI, ambientes de staging/produção, observabilidade e ro
 ## Pré-condições
 - Repositório GitHub conectado à Vercel.
 - Projeto Supabase provisionado.
+- **Skills do Claude Code a invocar**: `vercel:deploy`, `vercel:deployments-cicd`, `vercel:env`, `vercel:vercel-cli`, `vercel:status`.
 
 ## Passos
 1. GitHub Actions: lint → type-check → testes unitários → testes de RLS → build. Qualquer falha bloqueia o merge.

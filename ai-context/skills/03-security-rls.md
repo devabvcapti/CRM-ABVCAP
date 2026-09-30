@@ -7,6 +7,7 @@ Escrever e testar policies de Row Level Security, implementar a matriz de classi
 - `docs/adr/ADR-001-classificacao-dados-e-rls.md` lido.
 - Tabela em questão já definida (skill 02) com `organization_id`.
 - Tabela `entity_access_grants` e `audit_log` existentes (Fase 0).
+- **Skills do Claude Code a invocar**: `supabase`, `security-review`.
 
 ## Passos
 1. Classificar a tabela/coluna em um dos 4 níveis: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.

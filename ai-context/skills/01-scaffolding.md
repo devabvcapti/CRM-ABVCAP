@@ -7,6 +7,7 @@ Inicializar a fundação técnica do projeto — Next.js (App Router) + TypeScri
 - Documento normativo lido (`ARQUITERURA/...docx`) e `ai-context/AGENTS.md` assimilado.
 - Conta/projeto Vercel e projeto Supabase disponíveis (ou a criar nesta fase).
 - Nenhuma migration ou código de módulo ainda existente.
+- **Skills do Claude Code a invocar**: `vercel:bootstrap`, `vercel:nextjs`, `vercel:vercel-cli`, `shadcn`.
 
 ## Passos
 1. `npx create-next-app@latest` com App Router, TypeScript, Tailwind, ESLint — `strict: true` no `tsconfig.json`.

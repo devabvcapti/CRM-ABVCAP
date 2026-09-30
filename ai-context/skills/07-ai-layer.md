@@ -8,6 +8,7 @@ Implementar abstração de LLM, índices `pgvector`, rotinas de busca semântica
 - Policies de RLS e auditoria da matriz de classificação **auditadas e ativas em produção** — não apenas em ambiente de desenvolvimento.
 - ADR-001 (classificação de dados) vigente e sem pendências.
 - Esta skill **não pode ser iniciada** sem checagem formal explícita do gate acima registrada em `docs/roadmap.md`.
+- **Skills do Claude Code a invocar**: `vercel:ai-gateway`, `vercel:ai-sdk` (modelos via string `"provider/model"`, sem SDK proprietário direto).
 
 ## Passos
 1. Criar camada de abstração de provedor de LLM (interface desacoplada — nenhuma chamada direta a SDK proprietário fora dessa camada).
