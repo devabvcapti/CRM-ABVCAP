@@ -8,6 +8,8 @@ CRM de **inteligência de relacionamento** (relationship intelligence) para a AB
 
 Eixo central: a entidade de **relacionamento** (histórico de conexões, papéis, temperatura de contato), não a oportunidade de venda.
 
+**Repositório de referência**: `atomic-crm/` (raiz do projeto, gitignored) é um clone fixado do [marmelab/atomic-crm](https://github.com/marmelab/atomic-crm) (commit `a863e2a0`), um CRM open-source em React + Supabase. Serve como consulta de padrões de arquitetura/Supabase durante a Fase 0/1 — **nunca** é parte do nosso código nem deve ser copiado literalmente; qualquer padrão aproveitado deve ser adaptado ao nosso modelo de dados (Anexo B) e às nossas regras de RLS/classificação (ADR-001).
+
 Documento normativo completo: [`../ARQUITERURA/Uso interno — Documento de planejamento.docx`](../ARQUITERURA/Uso%20interno%20—%20Documento%20de%20planejamento.docx) (v1.0, 2026-09-29). Este diretório (`ai-context/`) e `docs/` são a tradução operacional desse documento em artefatos versionados. Em caso de conflito, o documento normativo prevalece até que um ADR o substitua formalmente.
 
 ## 2. Protocolo determinístico de execução
