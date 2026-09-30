@@ -6,7 +6,7 @@ Baseado no Anexo D do documento normativo (`ARQUITERURA/`).
 
 | Fase | Prazo sugerido | Status | Entregas principais |
 |---|---|---|---|
-| **Fase 0 — Fundação** | Semanas 1–4 | 🔲 Não iniciada | Next.js + TS estrito; Supabase + migrations iniciais; RLS ativa; `entity_access_grants` + `organization_id` em todas as tabelas; i18n scaffolding; **manifest.json + service worker (PWA)**; CI/CD; ADRs iniciais |
+| **Fase 0 — Fundação** | Semanas 1–4 | 🟡 Em andamento | Next.js + TS estrito ✅; Tailwind v4 ✅; shadcn/ui (Base UI + Nova) ✅; Supabase + migrations iniciais 🔲; RLS ativa 🔲; `entity_access_grants` + `organization_id` em todas as tabelas 🔲; i18n scaffolding 🔲; **manifest.json + service worker (PWA)** 🔲; CI/CD 🔲 |
 | **Fase 1 — Núcleo de Relacionamento** | Semanas 5–8 | 🔲 Não iniciada | CRUD contatos/organizações; `organization_contacts` com histórico; timeline de interações; busca + filtros salvos; tags; importador CSV/XLSX; **tabela `deals`/`deal_participants`**; processo de atendimento a titulares LGPD |
 | **Fase 2 — Tarefas, Kanban e Notificações** | Semanas 9–11 | 🔲 Não iniciada | Tarefas com recorrência; Kanban com mutação otimista; notificações Realtime + Resend **+ Web Push**; Vercel Cron |
 | **Fase 3 — Dashboards, Cards e Badges** | Semanas 12–14 | 🔲 Não iniciada | KPIs de engajamento; entity cards + badges semânticas; detecção de relacionamento esfriando; follow-up em lote |
@@ -29,4 +29,8 @@ _(nenhuma pendência crítica no momento — revisar ao avançar para a Fase 0 t
 
 ## Log de fases concluídas
 
-_(vazio — projeto ainda não iniciou a Fase 0 tecnicamente)_
+_(nenhuma fase concluída ainda)_
+
+## Log de progresso — Fase 0
+
+- **2026-09-29**: scaffolding inicial via `create-next-app` (Next.js 16.3.6, App Router, TypeScript estrito, Tailwind v4, pnpm) + `shadcn/ui` inicializado (Base UI + preset Nova) com o componente `alert` instalado. Lint e build de produção validados. Ainda faltam: Supabase/migrations, RLS, i18n, PWA, CI/CD — ver tabela acima.

@@ -8,6 +8,21 @@ Stack: Next.js (App Router) + TypeScript + Tailwind/shadcn + Supabase (Postgres,
 
 Antes de qualquer contribuição, leia, nesta ordem: [`docs/onboarding.md`](docs/onboarding.md).
 
+### Rodando localmente
+
+```bash
+pnpm install
+pnpm dev       # http://localhost:3000
+pnpm lint
+pnpm build
+```
+
+Componentes de UI via `shadcn/ui` (Base UI + preset Nova):
+
+```bash
+pnpm dlx shadcn@latest add <componente>
+```
+
 ## Estrutura
 
 Ver o documento normativo em `ARQUITERURA/` e a árvore completa descrita em `ai-context/AGENTS.md`.
