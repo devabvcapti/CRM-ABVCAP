@@ -31,6 +31,10 @@ _(nenhuma pendência crítica no momento — revisar ao avançar para a Fase 0 t
 
 - **`deals` / `deal_participants`** (2026-09-30): entidade e especificação já desenhadas (`docs/adr/ADR-004-deals-entidade-propria.md`, `docs/specs/deals.md`), mas o dono do projeto confirmou que não são necessárias neste momento. Retirada da Fase 1. O ADR permanece válido para quando a implementação for retomada — não requer novo ADR, apenas atualizar o status em `docs/specs/deals.md` e reinserir no roadmap na fase que fizer sentido então.
 
+## Escopo removido
+
+- **Eventos** (`events`/`event_participants`, rota `/eventos`) (2026-09-30): removido do escopo do projeto por decisão do dono do projeto. Isso é um desvio deliberado da Seção 1.2 e do Anexo B do documento normativo original, que listavam "organização integral de reuniões e eventos" como parte da v1 — registrado aqui para que a divergência entre o docx e o estado vivo do projeto não seja confundida com omissão. Diferente do backlog acima: não há intenção declarada de retomar; se isso mudar no futuro, tratar como feature nova (nova spec/ADR), não como retomada de um design existente.
+
 ## Log de fases concluídas
 
 _(nenhuma fase concluída ainda)_
