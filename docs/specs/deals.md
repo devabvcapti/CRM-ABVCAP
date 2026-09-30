@@ -1,6 +1,6 @@
 # Especificação — Módulo `deals`
 
-- **Status**: Aprovada para modelagem na Fase 1
+- **Status**: Desenhada, mas **adiada** — não faz parte do escopo imediato (decisão do dono do projeto em 2026-09-30). Ver `docs/roadmap.md` → Backlog / adiado. Retomar antes de agendar a migration.
 - **ADR relacionado**: `docs/adr/ADR-004-deals-entidade-propria.md`
 
 ## Propósito
