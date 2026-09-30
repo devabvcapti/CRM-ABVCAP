@@ -7,6 +7,7 @@ Executar testes unitários (Vitest), testes de isolamento de RLS no Postgres e t
 - Fluxo contínuo, obrigatório a cada PR — não é uma fase isolada.
 - Tabela/feature já implementada conforme a skill de domínio correspondente.
 - **Skills do Claude Code a invocar**: `playwright-cli`, `test-driven-development`, `unit-testing:test-generate`.
+- **Documentação via Context7**: `ctx7 library "Vitest" "..."` / `ctx7 library "Playwright" "..."` para APIs de mock, fixtures e asserções.
 
 ## Passos
 1. Teste unitário (Vitest) para toda regra de negócio em `src/modules/*/services/`.

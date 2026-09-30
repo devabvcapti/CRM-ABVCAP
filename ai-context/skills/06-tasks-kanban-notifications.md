@@ -7,6 +7,7 @@ Implementar fluxos de tarefas, quadros Kanban configuráveis e centro de notific
 - Núcleo de relacionamento (Fase 1) concluído — `contacts`/`organizations` existentes para associação polimórfica.
 - RLS ativa nas tabelas `tasks`, `boards`, `board_columns`, `board_cards`, `notifications`.
 - **Skills do Claude Code a invocar**: `supabase` (Realtime/Postgres), `vercel:vercel-functions` (Web Push/WebSockets, se necessário), `vercel:queues` (filas de digest/e-mail em lote).
+- **Documentação via Context7**: `ctx7 library "TanStack Query" "optimistic updates"` para mutação otimista do Kanban; `ctx7 library "Resend" "..."` para templates de e-mail transacional.
 
 ## Passos
 1. Modelar `tasks`, `task_checklist_items`, `task_observers` com associação polimórfica (`related_type`/`related_id`) à origem (contato, organização, evento, card).

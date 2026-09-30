@@ -8,6 +8,7 @@ Escrever e testar policies de Row Level Security, implementar a matriz de classi
 - Tabela em questão já definida (skill 02) com `organization_id`.
 - Tabela `entity_access_grants` e `audit_log` existentes (Fase 0).
 - **Skills do Claude Code a invocar**: `supabase`, `security-review`.
+- **Documentação via Context7**: `ctx7 library "Supabase" "Row Level Security policies"` para sintaxe atual de `CREATE POLICY` e funções auxiliares (`auth.uid()`, etc.).
 
 ## Passos
 1. Classificar a tabela/coluna em um dos 4 níveis: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.

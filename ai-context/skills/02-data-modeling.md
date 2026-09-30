@@ -8,6 +8,7 @@ Traduzir o modelo de dados (Anexo B do documento normativo) em migrations SQL ve
 - Skill 03 (security-rls) carregada em paralelo — **nenhuma tabela nasce sem RLS no mesmo arquivo**.
 - Anexo B do documento normativo consultado para a entidade em questão.
 - **Skills do Claude Code a invocar**: `supabase`, `data:sql-queries`.
+- **Documentação via Context7**: `ctx7 library "Supabase" "..."` para sintaxe de migrations, CLI (`supabase gen types`) e particularidades do Postgres gerenciado.
 
 ## Passos
 1. Uma migration numerada por unidade lógica de mudança (`NNN_descricao.sql`).

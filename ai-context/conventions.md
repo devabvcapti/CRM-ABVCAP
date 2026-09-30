@@ -2,6 +2,17 @@
 
 Checagem obrigatória antes de qualquer atividade de código (ver `ai-context/AGENTS.md`, item 2).
 
+## Consulta de documentação (Context7)
+
+Antes de usar uma API de biblioteca externa (Next.js, Supabase, Tailwind, shadcn/ui, TanStack Query, next-intl, Vercel AI SDK etc.), consultar documentação atual via CLI `ctx7` em vez de confiar apenas em conhecimento de treinamento — frameworks evoluem rápido e a versão memorizada pode estar desatualizada.
+
+```bash
+ctx7 library "Next.js" "App Router middleware"   # resolve o library ID
+ctx7 docs /vercel/next.js "App Router middleware" # consulta a doc pelo ID
+```
+
+Cada playbook em `ai-context/skills/` indica, em Pré-condições, para qual biblioteca essa consulta é mais relevante naquela etapa.
+
 ## Código
 
 - TypeScript em modo `strict: true` permanente. `any` proibido — usar tipos gerados do Supabase ou `unknown` devidamente tratado.

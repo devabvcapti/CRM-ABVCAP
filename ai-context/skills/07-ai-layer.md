@@ -9,6 +9,7 @@ Implementar abstração de LLM, índices `pgvector`, rotinas de busca semântica
 - ADR-001 (classificação de dados) vigente e sem pendências.
 - Esta skill **não pode ser iniciada** sem checagem formal explícita do gate acima registrada em `docs/roadmap.md`.
 - **Skills do Claude Code a invocar**: `vercel:ai-gateway`, `vercel:ai-sdk` (modelos via string `"provider/model"`, sem SDK proprietário direto).
+- **Documentação via Context7**: `ctx7 library "AI SDK" "..."` para a camada de abstração de LLM; `ctx7 library "pgvector" "..."` para indexação e busca por similaridade.
 
 ## Passos
 1. Criar camada de abstração de provedor de LLM (interface desacoplada — nenhuma chamada direta a SDK proprietário fora dessa camada).
