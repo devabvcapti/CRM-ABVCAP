@@ -48,4 +48,4 @@ Sentido único. Proibido: dependência circular, inversão de chamada, módulos 
 
 ## 6. Status atual
 
-Projeto em **Fase 0 (Fundação)** — ainda não iniciada tecnicamente. Este commit estabelece apenas o andaime documental e de contexto. Ver `docs/roadmap.md` para o estado vivo.
+Projeto em **Fase 0 (Fundação)** — ainda não iniciada tecnicamente. Este commit estabelece apenas o andaime documental e de contexto, já incorporando 3 decisões tomadas na sessão de planejamento inicial (ver ADR-003, ADR-004 e ADR-005): acesso mobile via PWA, `deals` como entidade própria, e conformidade LGPD. Ver `docs/roadmap.md` para o estado vivo.

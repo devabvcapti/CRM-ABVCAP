@@ -1,7 +1,7 @@
 # Skill: ui-design-system
 
 ## Objetivo
-Construir componentes via `shadcn/ui` e Tailwind — entity cards, badges semânticas, timeline e quadros Kanban — com padronização visual e reuso, eliminando duplicidade de código de interface. Inclui a responsabilidade de acesso fácil via celular (ver `docs/adr/` para a decisão de estratégia mobile, a confirmar em discussão de planejamento).
+Construir componentes via `shadcn/ui` e Tailwind — entity cards, badges semânticas, timeline e quadros Kanban — com padronização visual e reuso, eliminando duplicidade de código de interface. Inclui a responsabilidade de acesso fácil via celular como **PWA instalável** (ver `docs/adr/ADR-003-acesso-mobile-pwa.md`).
 
 ## Pré-condições
 - Skill 01 concluída (`shadcn/ui` instalado).
@@ -14,6 +14,7 @@ Construir componentes via `shadcn/ui` e Tailwind — entity cards, badges semân
 3. Implementar os três estados obrigatórios em todo componente assíncrono: loading (skeleton), erro, vazio.
 4. Validar em viewport mobile (largura mínima ~360px) e desktop antes de considerar o componente pronto — não apenas desktop.
 5. Validar contraste WCAG AA, navegação por teclado e ARIA.
+6. Abaixo do breakpoint mobile, usar navegação inferior (bottom nav) ou menu retrátil dedicado — nunca apenas encolher a sidebar de desktop (ADR-003).
 
 ## Padrões obrigatórios
 - Cores, tipografia, espaçamento, raio de borda: só via variáveis Tailwind de `src/styles/` — proibido valor mágico inline.

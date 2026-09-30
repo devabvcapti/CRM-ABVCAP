@@ -21,6 +21,7 @@ Implementar abstração de LLM, índices `pgvector`, rotinas de busca semântica
 - Dados `RESTRICTED`: bloqueados por padrão para embeddings/prompts; opt-in explícito e logado por entidade quando excepcionalmente permitido.
 - Nenhum acoplamento direto a um único fornecedor de LLM na lógica de negócio.
 - Toda geração de IA é rastreável (`ai_insights` versionado) e nunca sobrescreve dado original do usuário.
+- Dado pessoal identificável de `contacts` (nome, e-mail, telefone) não é enviado a provedor de LLM externo sem opt-in e log, mesmo quando classificado `INTERNAL` — reforço de minimização de dados exigido pelo ADR-005 (LGPD), além da classificação de confidencialidade de negócio do ADR-001.
 
 ## Checklist de aceite
 - [ ] Gate de segurança formalmente validado e registrado antes do primeiro commit desta skill.

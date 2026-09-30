@@ -12,7 +12,7 @@ Barreira contra desvio de nomenclatura no código. Enriquecer conforme novos dom
 ## Conceitos de negócio
 
 - **Mandato** — mandato de investimento ou representação em andamento; dado sensível, tipicamente classificado como `CONFIDENTIAL` ou `RESTRICTED`.
-- **Deal** — operação/transação em andamento (aquisição, rodada de investimento, M&A); dado `RESTRICTED` por padrão.
+- **Deal** — operação/transação em andamento (aquisição, rodada de investimento, M&A) do ecossistema PE/VC; dado `RESTRICTED` por padrão. Modelado como entidade própria (`deals` + `deal_participants`, ver ADR-004) — é **registro de inteligência institucional**, não funil de vendas: não possui estágios comerciais, metas de conversão ou métricas de ganho/perda (isso permanece fora de escopo da v1).
 - **Tese setorial** — hipótese de investimento de um fundo para um setor específico; dado `CONFIDENTIAL`.
 - **Tier de Relacionamento (A/B/C)** — classificação de prioridade institucional de uma organização ou contato:
   - **Tier A** — destaque prioritário.

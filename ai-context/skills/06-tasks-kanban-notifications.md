@@ -1,7 +1,7 @@
 # Skill: tasks-kanban-notifications
 
 ## Objetivo
-Implementar fluxos de tarefas, quadros Kanban configuráveis e centro de notificações via Supabase Realtime e e-mail transacional. Coração da rotina operacional da equipe — exige precisão no controle de estado concorrente e permissões granulares.
+Implementar fluxos de tarefas, quadros Kanban configuráveis e centro de notificações via Supabase Realtime, e-mail transacional e **web push** (ADR-003). Coração da rotina operacional da equipe — exige precisão no controle de estado concorrente e permissões granulares.
 
 ## Pré-condições
 - Núcleo de relacionamento (Fase 1) concluído — `contacts`/`organizations` existentes para associação polimórfica.
@@ -13,7 +13,8 @@ Implementar fluxos de tarefas, quadros Kanban configuráveis e centro de notific
 3. Configurar Supabase Realtime (`postgres_changes`) para notificações in-app instantâneas.
 4. Integrar Resend para e-mails transacionais e digests; templates com fallback de idioma (i18n).
 5. Configurar Vercel Cron + `pg_cron` para lembretes de prazo e recorrência de tarefas.
-6. Implementar painel de preferências de notificação por canal (in-app / e-mail) e por tipo de evento.
+6. Implementar painel de preferências de notificação por canal (in-app / e-mail / **web push**) e por tipo de evento.
+7. Integrar o service worker (ADR-003) à assinatura de Web Push, com opt-in explícito por usuário.
 
 ## Padrões obrigatórios
 - Toda mutação de estado do Kanban é otimista na UI mas confirmada no servidor — reverter visualmente em caso de falha.
