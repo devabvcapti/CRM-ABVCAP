@@ -32,6 +32,8 @@ Cada playbook em `ai-context/skills/` indica, em Pré-condições, para qual bib
 
 ## Interface
 
+Antes de compor uma tela nova ou instalar um componente, consultar a skill local `shadcn` (`.claude/skills/shadcn/SKILL.md`, instalada via `skills add shadcn/ui` a partir do próprio repositório oficial) — cobre composição, variantes, cores semânticas e regras de estilo/formulários/chat. Há também `migrate-radix-to-base` para o caso raro de um componente antigo baseado em Radix precisar migrar para Base UI (nosso padrão, ver `components.json`).
+
 - Tokens de cor, tipografia, espaçamento e raio de borda centralizados em `src/styles/` (Tailwind).
 - Todo componente com I/O assíncrono implementa os três estados: loading (skeleton), erro (tratamento gracioso), vazio (empty state explicativo).
 - Badges seguem vocabulário fixo: Tier (A prioritário / B intermediário / C monitoramento), status de relacionamento (ativo-aquecido / esfriando), criticidade de prazo (no prazo / a vencer em 48h / atrasado).
