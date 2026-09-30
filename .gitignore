@@ -42,3 +42,6 @@ next-env.d.ts
 
 # reference repos (clonados para consulta, nunca parte do nosso codigo)
 /atomic-crm
+
+# estado interno de runtime do Claude Code (nao e conteudo do projeto)
+.claude/scheduled_tasks.lock
