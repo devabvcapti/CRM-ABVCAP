@@ -37,6 +37,7 @@ Cada playbook em `ai-context/skills/` indica, em Pré-condições, para qual bib
 - Badges seguem vocabulário fixo: Tier (A prioritário / B intermediário / C monitoramento), status de relacionamento (ativo-aquecido / esfriando), criticidade de prazo (no prazo / a vencer em 48h / atrasado).
 - WCAG AA de contraste, navegação por teclado completa, ARIA em elementos interativos.
 - Primitivos `shadcn/ui` em `src/components/ui/` — **não editar manualmente** (gerados via CLI). Compostos com regra de negócio vivem em `src/components/shared/`, nunca em `ui/`.
+- Componentes instalados de **registries de terceiros do shadcn** (ex.: `@reui`, via `shadcn add @registry/nome`) vivem em `src/components/<registry>/` (ex.: `src/components/reui/`) e são tratados como código vendorizado: **não editar manualmente** e **isentos do lint do projeto** (ver `globalIgnores` em `eslint.config.mjs`) — não faz sentido corrigir à mão erros de hooks em milhares de linhas de código que não escrevemos. Ao adicionar um novo registry de terceiros, registrar o alias em `components.json` e adicionar a pasta correspondente ao `globalIgnores`.
 
 ## Git e entrega
 
