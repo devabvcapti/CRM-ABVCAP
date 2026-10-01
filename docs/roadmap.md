@@ -22,6 +22,7 @@ Ver Anexo D do documento normativo para o DoD completo de cada fase, e Anexo E p
 - ✅ Acesso mobile: **PWA instalável** (manifest + service worker + web push) — ver `docs/adr/ADR-003-acesso-mobile-pwa.md`. Adiciona entregável à Fase 0 (manifest/service worker) e ao canal de notificações da Fase 2 (web push).
 - ✅ `deals`/`mandatos`: modelo de entidade **desenhado** (não funil comercial) — ver `docs/adr/ADR-004-deals-entidade-propria.md`. Implementação **adiada** (ver Backlog abaixo, 2026-09-30): não é necessária no momento, retirada do escopo da Fase 1.
 - ✅ Conformidade LGPD: ADR criado agora, na Fase 0 — ver `docs/adr/ADR-005-conformidade-lgpd.md`.
+- ✅ Schema dedicado `crm_abvcap` + autenticação compartilhada (2026-10-01): o projeto Supabase do CRM vai hospedar também outra aplicação da ABVCAP. Nenhuma tabela do CRM vive em `public`; `auth.users` é compartilhado, permissionamento resolvido via `crm_abvcap.user_profiles` — ver `docs/adr/ADR-006-schema-dedicado-e-autenticacao-compartilhada.md`.
 
 ## Decisões em aberto
 

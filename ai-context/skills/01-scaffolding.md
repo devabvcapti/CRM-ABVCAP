@@ -13,8 +13,8 @@ Inicializar a fundação técnica do projeto — Next.js (App Router) + TypeScri
 ## Passos
 1. `npx create-next-app@latest` com App Router, TypeScript, Tailwind, ESLint — `strict: true` no `tsconfig.json`.
 2. Instalar e inicializar `shadcn/ui`.
-3. Instalar `@supabase/supabase-js`, `@supabase/ssr`; criar clients em `src/lib/supabase/` (server, browser, admin — admin nunca exposto ao bundle do cliente).
-4. Inicializar projeto Supabase (CLI) e pasta `supabase/migrations/`.
+3. Instalar `@supabase/supabase-js`, `@supabase/ssr`; criar clients em `src/lib/supabase/` (server, browser, admin — admin nunca exposto ao bundle do cliente), todos instanciados com `db: { schema: 'crm_abvcap' }` (ver ADR-006 — o projeto Supabase é compartilhado com outra aplicação da ABVCAP, nunca usar o `public` implícito).
+4. Inicializar projeto Supabase (CLI) e pasta `supabase/migrations/`. Adicionar `crm_abvcap` em Project Settings → API → Exposed schemas.
 5. Configurar `next-intl` com rotas `[locale]` (pt-BR / en-US) — ver skill 05.
 6. Criar `.env.example` com todas as chaves esperadas, sem valores reais.
 7. Configurar ESLint + Prettier na esteira de CI (GitHub Actions) — ver skill 09.
