@@ -25,8 +25,17 @@ test.describe("contatos", () => {
       await createDialog.getByRole("button", { name: "Criar" }).click();
 
       await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+      const detailUrl = page.url();
       await expect(page.getByRole("heading", { name })).toBeVisible();
       await expect(page.getByText("Palestrante")).toBeVisible();
+
+      // A tag "Palestrante" cadastrada na criação também aparece como badge
+      // na linha da lista, não só na página de detalhe.
+      await page.goto(LIST_PATH);
+      await expect(
+        page.getByRole("row", { name }).getByText("Palestrante"),
+      ).toBeVisible();
+      await page.goto(detailUrl);
 
       // Editar, a partir do detalhe.
       await page.getByRole("button", { name: "Editar" }).click();
@@ -70,6 +79,39 @@ test.describe("contatos", () => {
 
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+
+      // Ordenação pelo cabeçalho "Nome": restringe a busca ao prefixo comum
+      // aos dois contatos de teste (evita que a paginação sobre a lista
+      // completa de contatos reais separe nameA/nameB em páginas diferentes),
+      // clica duas vezes no cabeçalho e confirma que a segunda ordem inverte
+      // a primeira (mais simples e robusto que fixar qual é "asc"/"desc").
+      await page.getByPlaceholder("Buscar por nome…").fill("E2E Contact Search");
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+
+      const nameColumnSortButton = page
+        .getByRole("columnheader", { name: "Nome" })
+        .getByRole("button");
+
+      async function rowOrder() {
+        const rowTexts = await page.getByRole("row").allTextContents();
+        return {
+          a: rowTexts.findIndex((text) => text.includes(nameA)),
+          b: rowTexts.findIndex((text) => text.includes(nameB)),
+        };
+      }
+
+      await nameColumnSortButton.click();
+      const firstOrder = await rowOrder();
+      expect(firstOrder.a).toBeGreaterThanOrEqual(0);
+      expect(firstOrder.b).toBeGreaterThanOrEqual(0);
+
+      await nameColumnSortButton.click();
+      const secondOrder = await rowOrder();
+      expect(secondOrder.a).toBeGreaterThanOrEqual(0);
+      expect(secondOrder.b).toBeGreaterThanOrEqual(0);
+
+      expect(secondOrder.a < secondOrder.b).toBe(!(firstOrder.a < firstOrder.b));
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
