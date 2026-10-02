@@ -57,7 +57,18 @@
     "submitting": "Salvando…",
     "cancel": "Cancelar",
     "errorRequiredName": "Informe o nome completo.",
-    "errorGeneric": "Não foi possível salvar. Tente novamente."
+    "errorGeneric": "Não foi possível salvar. Tente novamente.",
+    "linksTitle": "Vínculos institucionais",
+    "linksEmpty": "Nenhum vínculo com organização ainda.",
+    "linkOngoing": "atual",
+    "linkEnd": "Encerrar",
+    "linkAdd": "Vincular",
+    "linkFieldOrg": "Organização",
+    "linkFieldRole": "Cargo",
+    "linkFieldStartDate": "Início",
+    "linkErrorRequiredOrg": "Selecione a organização.",
+    "linkErrorRequiredRole": "Informe o cargo.",
+    "linkErrorRequiredDate": "Informe a data de início."
   },
   "OrganizationsPage": {
     "title": "Organizações",

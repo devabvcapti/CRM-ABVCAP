@@ -57,7 +57,18 @@
     "submitting": "Saving…",
     "cancel": "Cancel",
     "errorRequiredName": "Enter the full name.",
-    "errorGeneric": "Could not save. Please try again."
+    "errorGeneric": "Could not save. Please try again.",
+    "linksTitle": "Institutional links",
+    "linksEmpty": "No organization link yet.",
+    "linkOngoing": "current",
+    "linkEnd": "End",
+    "linkAdd": "Link",
+    "linkFieldOrg": "Organization",
+    "linkFieldRole": "Role",
+    "linkFieldStartDate": "Start date",
+    "linkErrorRequiredOrg": "Select the organization.",
+    "linkErrorRequiredRole": "Enter the role.",
+    "linkErrorRequiredDate": "Enter the start date."
   },
   "OrganizationsPage": {
     "title": "Organizations",

@@ -135,3 +135,57 @@ export async function deleteContact(id: string) {
   await supabase.from("contacts").delete().eq("id", id);
   revalidatePath("/[locale]/contacts", "page");
 }
+
+const organizationLinkSchema = z.object({
+  org_id: z.string().min(1),
+  role: z.string().min(1),
+  start_date: z.string().min(1),
+});
+
+export type OrganizationLinkState = {
+  error: "required_org" | "required_role" | "required_date" | "generic" | null;
+  success?: boolean;
+};
+
+export async function addOrganizationLink(
+  contactId: string,
+  _prevState: OrganizationLinkState,
+  formData: FormData,
+): Promise<OrganizationLinkState> {
+  const parsed = organizationLinkSchema.safeParse({
+    org_id: formData.get("org_id"),
+    role: formData.get("role"),
+    start_date: formData.get("start_date"),
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    if (fieldErrors.org_id) return { error: "required_org" };
+    if (fieldErrors.role) return { error: "required_role" };
+    return { error: "required_date" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("organization_contacts").insert({
+    contact_id: contactId,
+    org_id: parsed.data.org_id,
+    role: parsed.data.role,
+    start_date: parsed.data.start_date,
+  });
+
+  if (error) return { error: "generic" };
+
+  revalidatePath("/[locale]/contacts", "page");
+  return { error: null, success: true };
+}
+
+// "Encerrar" nunca é hard-delete — organization_contacts preserva histórico
+// de vínculos (skill 02-data-modeling), então isso só popula end_date.
+export async function endOrganizationLink(linkId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("organization_contacts")
+    .update({ end_date: new Date().toISOString().slice(0, 10) })
+    .eq("id", linkId);
+  revalidatePath("/[locale]/contacts", "page");
+}
