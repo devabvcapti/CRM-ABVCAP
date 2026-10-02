@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import {
   Table,
@@ -14,8 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
-import { deleteOrganization } from "./actions";
+import type { OrganizationFormState } from "./actions";
 import { OrganizationForm } from "./organization-form";
 
 type Organization = Database["crm_abvcap"]["Tables"]["organizations"]["Row"];
@@ -29,30 +31,30 @@ function toPascalCase(value: string) {
 
 export function OrganizationsTable({ organizations }: { organizations: Organization[] }) {
   const t = useTranslations("OrganizationsPage");
+  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editing, setEditing] = useState<Organization | undefined>(undefined);
-  // Nonce incrementado a cada abertura — ver comentário junto do `key` abaixo.
-  // Usar editing?.id como key não bastava: toda criação tem editing=undefined,
-  // então duas criações seguidas (ou duas edições seguidas da mesma linha)
-  // caem na MESMA key, não remontam o form, e o Sheet para de fechar a
-  // partir da segunda operação repetida.
+  // Nonce incrementado a cada abertura — ver ai-context/skills/08-testing-quality.md:
+  // key por identidade não basta (duas criações seguidas cairiam na mesma key).
   const [formKey, setFormKey] = useState(0);
+  const [search, setSearch] = useState("");
+
+  // Filtro client-side sobre a lista já carregada — não é busca full-text no
+  // banco (isso fica para quando houver volume real de organizações que
+  // justifique).
+  const filteredOrganizations = organizations.filter((organization) =>
+    organization.name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   function openCreate() {
-    setEditing(undefined);
     setFormKey((key) => key + 1);
     setSheetOpen(true);
   }
 
-  function openEdit(organization: Organization) {
-    setEditing(organization);
-    setFormKey((key) => key + 1);
-    setSheetOpen(true);
-  }
-
-  async function handleDelete(id: string) {
-    if (!window.confirm(t("deleteConfirm"))) return;
-    await deleteOrganization(id);
+  function handleSaved(state: OrganizationFormState) {
+    setSheetOpen(false);
+    // Criar sempre navega para o detalhe da nova organização — é lá que
+    // ficam contatos vinculados, timeline de interações, editar e excluir.
+    if (state.id) router.push(`/organizations/${state.id}`);
   }
 
   return (
@@ -68,69 +70,48 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
       {organizations.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("colName")}</TableHead>
-              <TableHead>{t("colType")}</TableHead>
-              <TableHead>{t("colTier")}</TableHead>
-              <TableHead>{t("colStatus")}</TableHead>
-              <TableHead className="text-right">{t("colActions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {organizations.map((organization) => (
-              <TableRow key={organization.id}>
-                <TableCell className="font-medium">{organization.name}</TableCell>
-                <TableCell>{t(`type${toPascalCase(organization.org_type)}`)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{organization.tier}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={organization.status === "ativo" ? "default" : "secondary"}>
-                    {t(`status${toPascalCase(organization.status)}`)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="flex justify-end gap-1 text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("edit")}
-                    onClick={() => openEdit(organization)}
-                  >
-                    <PencilIcon aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("delete")}
-                    onClick={() => handleDelete(organization.id)}
-                  >
-                    <Trash2Icon aria-hidden="true" />
-                  </Button>
-                </TableCell>
+        <>
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="max-w-sm"
+          />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("colName")}</TableHead>
+                <TableHead>{t("colType")}</TableHead>
+                <TableHead>{t("colTier")}</TableHead>
+                <TableHead>{t("colStatus")}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredOrganizations.map((organization) => (
+                <TableRow key={organization.id} className="cursor-pointer">
+                  <TableCell className="font-medium">
+                    <Link href={`/organizations/${organization.id}`} className="block">
+                      {organization.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{t(`type${toPascalCase(organization.org_type)}`)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{organization.tier}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={organization.status === "ativo" ? "default" : "secondary"}>
+                      {t(`status${toPascalCase(organization.status)}`)}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        {/* key força remount a cada abertura — sem isso, o useActionState do
-            form reaproveita a instância anterior e, como `state.success` já
-            era `true` desde a última submissão, o useEffect que fecha o
-            Sheet nunca via o valor "mudar" de novo (true -> true). Achado
-            via teste E2E real (a edição nunca fechava o Sheet) — e a
-            primeira correção (key={editing?.id ?? "create"}) ainda tinha o
-            mesmo bug para duas criações seguidas ou duas edições seguidas da
-            MESMA linha, porque a key não mudava entre elas. Por isso o nonce
-            `formKey`, incrementado a cada abertura, não a identidade da
-            entidade. */}
-        <OrganizationForm
-          key={formKey}
-          organization={editing}
-          onSaved={() => setSheetOpen(false)}
-        />
+        <OrganizationForm key={formKey} onSaved={handleSaved} />
       </Sheet>
     </div>
   );

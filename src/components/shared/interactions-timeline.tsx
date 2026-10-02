@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createInteraction, type InteractionFormState } from "./actions";
+import { createInteraction, type InteractionFormState } from "@/lib/actions/interactions";
 
 export type InteractionRow = {
   id: string;
@@ -23,6 +23,8 @@ export type InteractionRow = {
   summary: string;
   classification_level: string;
 };
+
+type ParticipantType = "contact" | "organization";
 
 const TYPES = ["reuniao", "email", "chamada", "evento_associativo"] as const;
 const LEVELS = ["public", "internal", "confidential", "restricted"] as const;
@@ -36,16 +38,22 @@ function toPascalCase(value: string) {
 
 const initialState: InteractionFormState = { error: null };
 
+// Compartilhado entre a página de detalhe de Contato e de Organização —
+// interaction_participants é polimórfico (ver src/lib/actions/interactions.ts),
+// e a UI (tipo/data/resumo/classificação) é idêntica para os dois, só muda o
+// participante vinculado.
 function AddInteractionForm({
-  contactId,
+  participantType,
+  participantId,
   onAdded,
 }: {
-  contactId: string;
+  participantType: ParticipantType;
+  participantId: string;
   onAdded: () => void;
 }) {
-  const t = useTranslations("ContactsPage");
+  const t = useTranslations("InteractionsTimeline");
   const [state, formAction, isPending] = useActionState(
-    createInteraction.bind(null, contactId),
+    createInteraction.bind(null, participantType, participantId),
     initialState,
   );
 
@@ -56,11 +64,11 @@ function AddInteractionForm({
 
   const errorMessage =
     state.error === "required_type"
-      ? t("interactionErrorRequiredType")
+      ? t("errorRequiredType")
       : state.error === "required_date"
-        ? t("interactionErrorRequiredDate")
+        ? t("errorRequiredDate")
         : state.error === "required_summary"
-          ? t("interactionErrorRequiredSummary")
+          ? t("errorRequiredSummary")
           : state.error === "generic"
             ? t("errorGeneric")
             : undefined;
@@ -75,22 +83,28 @@ function AddInteractionForm({
     <form action={formAction} className="flex flex-col gap-2 rounded-md border p-3">
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="type">{t("interactionFieldType")}</FieldLabel>
+          <FieldLabel htmlFor="type">{t("fieldType")}</FieldLabel>
           <Select name="type" required>
             <SelectTrigger id="type" className="w-full">
-              <SelectValue placeholder={t("selectPlaceholder")} />
+              {/* Select.Value da Base UI mostra o valor bruto, não o rótulo
+                  do SelectItem — precisa de children função mesmo sem
+                  defaultValue (reproduzido interativamente, não só com valor
+                  pré-selecionado do banco; ver ai-context/skills/02-data-modeling.md). */}
+              <SelectValue>
+                {(value: string | null) => (value ? t(`type${toPascalCase(value)}`) : t("selectPlaceholder"))}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {t(`interactionType${toPascalCase(type)}`)}
+                  {t(`type${toPascalCase(type)}`)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
         <Field>
-          <FieldLabel htmlFor="occurred_at">{t("interactionFieldOccurredAt")}</FieldLabel>
+          <FieldLabel htmlFor="occurred_at">{t("fieldOccurredAt")}</FieldLabel>
           <Input
             id="occurred_at"
             name="occurred_at"
@@ -99,19 +113,16 @@ function AddInteractionForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="summary">{t("interactionFieldSummary")}</FieldLabel>
+          <FieldLabel htmlFor="summary">{t("fieldSummary")}</FieldLabel>
           <Textarea id="summary" name="summary" rows={2} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="classification_level">
-            {t("interactionFieldClassification")}
-          </FieldLabel>
+          <FieldLabel htmlFor="classification_level">{t("fieldClassification")}</FieldLabel>
           <Select name="classification_level" defaultValue="internal" required>
             <SelectTrigger id="classification_level" className="w-full">
               {/* Select.Value da Base UI mostra o valor bruto, não o rótulo
                   do SelectItem — precisa de children função pra traduzir
-                  quando pré-selecionado via defaultValue (ver
-                  organization-form.tsx para a mesma correção). */}
+                  quando pré-selecionado via defaultValue. */}
               <SelectValue>
                 {(value: string | null) => (value ? t(`classification${toPascalCase(value)}`) : "")}
               </SelectValue>
@@ -127,7 +138,7 @@ function AddInteractionForm({
         </Field>
         {errorMessage && <FieldError>{errorMessage}</FieldError>}
         <Button type="submit" variant="outline" disabled={isPending}>
-          {isPending ? t("submitting") : t("interactionAdd")}
+          {isPending ? t("submitting") : t("add")}
         </Button>
       </FieldGroup>
     </form>
@@ -135,29 +146,29 @@ function AddInteractionForm({
 }
 
 export function InteractionsTimeline({
-  contactId,
+  participantType,
+  participantId,
   interactions,
 }: {
-  contactId: string;
+  participantType: ParticipantType;
+  participantId: string;
   interactions: InteractionRow[];
 }) {
-  const t = useTranslations("ContactsPage");
+  const t = useTranslations("InteractionsTimeline");
   const [formKey, setFormKey] = useState(0);
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium text-foreground">{t("interactionsTitle")}</h3>
+      <h3 className="text-sm font-medium text-foreground">{t("title")}</h3>
 
       {interactions.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("interactionsEmpty")}</p>
+        <p className="text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {interactions.map((interaction) => (
             <li key={interaction.id} className="rounded-md border p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline">
-                  {t(`interactionType${toPascalCase(interaction.type)}`)}
-                </Badge>
+                <Badge variant="outline">{t(`type${toPascalCase(interaction.type)}`)}</Badge>
                 <span className="text-xs text-muted-foreground">
                   {new Date(interaction.occurred_at).toLocaleString()}
                 </span>
@@ -175,7 +186,8 @@ export function InteractionsTimeline({
 
       <AddInteractionForm
         key={formKey}
-        contactId={contactId}
+        participantType={participantType}
+        participantId={participantId}
         onAdded={() => setFormKey((key) => key + 1)}
       />
     </div>
