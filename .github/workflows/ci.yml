@@ -38,6 +38,7 @@ jobs:
 
   e2e:
     name: e2e (playwright)
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

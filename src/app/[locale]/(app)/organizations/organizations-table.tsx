@@ -31,14 +31,22 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
   const t = useTranslations("OrganizationsPage");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Organization | undefined>(undefined);
+  // Nonce incrementado a cada abertura — ver comentário junto do `key` abaixo.
+  // Usar editing?.id como key não bastava: toda criação tem editing=undefined,
+  // então duas criações seguidas (ou duas edições seguidas da mesma linha)
+  // caem na MESMA key, não remontam o form, e o Sheet para de fechar a
+  // partir da segunda operação repetida.
+  const [formKey, setFormKey] = useState(0);
 
   function openCreate() {
     setEditing(undefined);
+    setFormKey((key) => key + 1);
     setSheetOpen(true);
   }
 
   function openEdit(organization: Organization) {
     setEditing(organization);
+    setFormKey((key) => key + 1);
     setSheetOpen(true);
   }
 
@@ -112,9 +120,14 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
             form reaproveita a instância anterior e, como `state.success` já
             era `true` desde a última submissão, o useEffect que fecha o
             Sheet nunca via o valor "mudar" de novo (true -> true). Achado
-            via teste E2E real (a edição nunca fechava o Sheet). */}
+            via teste E2E real (a edição nunca fechava o Sheet) — e a
+            primeira correção (key={editing?.id ?? "create"}) ainda tinha o
+            mesmo bug para duas criações seguidas ou duas edições seguidas da
+            MESMA linha, porque a key não mudava entre elas. Por isso o nonce
+            `formKey`, incrementado a cada abertura, não a identidade da
+            entidade. */}
         <OrganizationForm
-          key={editing?.id ?? "create"}
+          key={formKey}
           organization={editing}
           onSaved={() => setSheetOpen(false)}
         />

@@ -30,14 +30,20 @@ export function ContactsTable({
   const t = useTranslations("ContactsPage");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | undefined>(undefined);
+  // Nonce incrementado a cada abertura — ver organizations-table.tsx: usar
+  // editing?.id como key não bastava (toda criação tem editing=undefined,
+  // então duas criações seguidas caem na mesma key e o Sheet para de fechar).
+  const [formKey, setFormKey] = useState(0);
 
   function openCreate() {
     setEditing(undefined);
+    setFormKey((key) => key + 1);
     setSheetOpen(true);
   }
 
   function openEdit(contact: Contact) {
     setEditing(contact);
+    setFormKey((key) => key + 1);
     setSheetOpen(true);
   }
 
@@ -110,9 +116,11 @@ export function ContactsTable({
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         {/* key força remount a cada abertura — mesma razão documentada em
-            organizations-table.tsx (useActionState preso em success=true). */}
+            organizations-table.tsx (useActionState preso em success=true;
+            nonce, não identidade, porque duas operações iguais seguidas
+            tinham a mesma key e o bug persistia). */}
         <ContactForm
-          key={editing?.id ?? "create"}
+          key={formKey}
           contact={editing}
           contactTags={editing ? tagsByContact[editing.id] : undefined}
           onSaved={() => setSheetOpen(false)}

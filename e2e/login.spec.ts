@@ -24,11 +24,18 @@ test.describe("autenticação", () => {
   test("login com a conta de teste chega ao dashboard", async ({ page }) => {
     await loginAsQa(page);
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("heading")).toContainText("QA Playwright");
+    // Não travar no nome de exibição da conta de teste (seed não documentado
+    // como parte do contrato do teste) — só confirmar que a saudação renderizou.
+    await expect(page.getByRole("heading")).toContainText("Bem-vindo");
   });
 
   test("logout volta para /login", async ({ page }) => {
     await loginAsQa(page);
+
+    // Espera a página hidratar antes de decidir se a sidebar já está visível
+    // — checar isVisible() logo após o waitForURL (sem esperar hidratação)
+    // pode pegar a "Toggle Sidebar" como falso negativo em desktop.
+    await expect(page.getByRole("heading")).toBeVisible();
 
     // Em viewport mobile a sidebar some atrás de um Sheet off-canvas (ADR-003) —
     // precisa abrir pelo "Toggle Sidebar" antes de alcançar o "Sair". Em

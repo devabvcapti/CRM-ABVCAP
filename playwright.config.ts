@@ -10,10 +10,18 @@ export default defineConfig({
   // token do Supabase Auth — descoberto rodando em paralelo (workers
   // default), virou ERR_TOO_MANY_REDIRECTS numa sessão invalidada por outra.
   workers: 1,
-  reporter: process.env.CI ? "github" : "html",
+  // Em CI, "github" (anotações no Actions) + "html" (artefato de depuração,
+  // ver upload no workflow) — localmente só "html".
+  reporter: process.env.CI ? [["github"], ["html"]] : "html",
   use: {
     baseURL: "http://127.0.0.1:3000",
-    trace: "on-first-retry",
+    // Trace desligado de propósito: o repositório é público e a conta de
+    // teste (QA_EMAIL/QA_PASSWORD) tem papel admin — o DOM snapshot de um
+    // trace não é garantidamente mascarado para valores de <input
+    // type="password">, diferente de um screenshot (que só mostra os pontos
+    // visuais). Não arriscar a senha de uma conta admin num artefato público
+    // de 14 dias de retenção só pra ganhar trace em retry.
+    trace: "off",
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
