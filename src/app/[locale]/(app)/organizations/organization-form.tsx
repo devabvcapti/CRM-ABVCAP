@@ -82,7 +82,14 @@ export function OrganizationForm({
               <FieldLabel htmlFor="org_type">{t("fieldType")}</FieldLabel>
               <Select name="org_type" defaultValue={organization?.org_type} required>
                 <SelectTrigger id="org_type" className="w-full">
-                  <SelectValue placeholder={t("selectPlaceholder")} />
+                  {/* Select.Value da Base UI mostra o valor bruto armazenado,
+                      não o rótulo do SelectItem — precisa de children função
+                      pra traduzir quando pré-selecionado via defaultValue. */}
+                  <SelectValue>
+                    {(value: string | null) =>
+                      value ? t(`type${toPascalCase(value)}`) : t("selectPlaceholder")
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ORG_TYPES.map((type) => (
@@ -121,7 +128,11 @@ export function OrganizationForm({
               <FieldLabel htmlFor="status">{t("fieldStatus")}</FieldLabel>
               <Select name="status" defaultValue={organization?.status ?? "ativo"} required>
                 <SelectTrigger id="status" className="w-full">
-                  <SelectValue placeholder={t("selectPlaceholder")} />
+                  <SelectValue>
+                    {(value: string | null) =>
+                      value ? t(`status${toPascalCase(value)}`) : t("selectPlaceholder")
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {STATUSES.map((status) => (

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { cleanupPolymorphicReferences } from "@/lib/supabase/polymorphic-cleanup";
 
 const contactSchema = z.object({
   full_name: z.string().min(1),
@@ -17,7 +18,13 @@ const contactSchema = z.object({
 export type ContactFormState = {
   error: "required_name" | "generic" | null;
   success?: boolean;
+  id?: string;
 };
+
+function revalidateContacts(id?: string) {
+  revalidatePath("/[locale]/contacts", "page");
+  if (id) revalidatePath("/[locale]/contacts/[id]", "page");
+}
 
 function splitList(value?: string) {
   if (!value) return [];
@@ -97,8 +104,8 @@ export async function createContact(
 
   await syncTags(supabase, data.id, splitList(parsed.data.tags));
 
-  revalidatePath("/[locale]/contacts", "page");
-  return { error: null, success: true };
+  revalidateContacts(data.id);
+  return { error: null, success: true, id: data.id };
 }
 
 export async function updateContact(
@@ -126,14 +133,15 @@ export async function updateContact(
 
   await syncTags(supabase, id, splitList(parsed.data.tags));
 
-  revalidatePath("/[locale]/contacts", "page");
+  revalidateContacts(id);
   return { error: null, success: true };
 }
 
 export async function deleteContact(id: string) {
   const supabase = await createClient();
+  await cleanupPolymorphicReferences(supabase, "contact", id);
   await supabase.from("contacts").delete().eq("id", id);
-  revalidatePath("/[locale]/contacts", "page");
+  revalidateContacts(id);
 }
 
 const organizationLinkSchema = z.object({
@@ -175,17 +183,82 @@ export async function addOrganizationLink(
 
   if (error) return { error: "generic" };
 
-  revalidatePath("/[locale]/contacts", "page");
+  revalidateContacts(contactId);
   return { error: null, success: true };
 }
 
 // "Encerrar" nunca é hard-delete — organization_contacts preserva histórico
 // de vínculos (skill 02-data-modeling), então isso só popula end_date.
-export async function endOrganizationLink(linkId: string) {
+export async function endOrganizationLink(linkId: string, contactId: string) {
   const supabase = await createClient();
   await supabase
     .from("organization_contacts")
     .update({ end_date: new Date().toISOString().slice(0, 10) })
     .eq("id", linkId);
-  revalidatePath("/[locale]/contacts", "page");
+  revalidateContacts(contactId);
+}
+
+const INTERACTION_TYPES = ["reuniao", "email", "chamada", "evento_associativo"] as const;
+const CLASSIFICATION_LEVELS = ["public", "internal", "confidential", "restricted"] as const;
+
+const interactionSchema = z.object({
+  type: z.enum(INTERACTION_TYPES),
+  occurred_at: z.string().min(1),
+  summary: z.string().min(1),
+  classification_level: z.enum(CLASSIFICATION_LEVELS),
+});
+
+export type InteractionFormState = {
+  error: "required_type" | "required_date" | "required_summary" | "generic" | null;
+  success?: boolean;
+};
+
+// Registra a interação e já vincula o contato como participante
+// (interaction_participants é polimórfico — ver 0003_crm_fase1_core.sql).
+export async function createInteraction(
+  contactId: string,
+  _prevState: InteractionFormState,
+  formData: FormData,
+): Promise<InteractionFormState> {
+  const parsed = interactionSchema.safeParse({
+    type: formData.get("type"),
+    occurred_at: formData.get("occurred_at"),
+    summary: formData.get("summary"),
+    classification_level: formData.get("classification_level") || "internal",
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    if (fieldErrors.type) return { error: "required_type" };
+    if (fieldErrors.occurred_at) return { error: "required_date" };
+    if (fieldErrors.summary) return { error: "required_summary" };
+    return { error: "generic" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("interactions")
+    .insert({
+      type: parsed.data.type,
+      occurred_at: parsed.data.occurred_at,
+      summary: parsed.data.summary,
+      classification_level: parsed.data.classification_level,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) return { error: "generic" };
+
+  const { error: participantError } = await supabase
+    .from("interaction_participants")
+    .insert({
+      interaction_id: data.id,
+      participant_type: "contact",
+      participant_id: contactId,
+    });
+
+  if (participantError) return { error: "generic" };
+
+  revalidateContacts(contactId);
+  return { error: null, success: true };
 }

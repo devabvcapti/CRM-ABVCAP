@@ -23,6 +23,16 @@ export async function deleteRowIfExists(page: Page, listPath: string, name: stri
   const row = page.getByRole("row", { name });
   if ((await row.count()) === 0) return;
 
+  // Organizações ainda tem "Excluir" inline na linha; Contatos não (fica só
+  // no detalhe, ver contact-edit-delete.tsx) — detecta qual padrão se aplica.
+  const inlineDelete = row.getByRole("button", { name: "Excluir" });
+  if ((await inlineDelete.count()) > 0) {
+    page.once("dialog", (dialog) => dialog.accept());
+    await inlineDelete.click();
+    return;
+  }
+
+  await row.getByRole("link", { name }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await row.getByRole("button", { name: "Excluir" }).click();
+  await page.getByRole("button", { name: "Excluir" }).click();
 }

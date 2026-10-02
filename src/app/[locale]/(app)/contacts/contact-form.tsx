@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/sheet";
 import type { Database } from "@/types/database";
 import { createContact, updateContact, type ContactFormState } from "./actions";
-import { OrganizationLinks, type OrganizationLinkRow } from "./organization-links";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
@@ -25,22 +24,18 @@ const initialState: ContactFormState = { error: null };
 export function ContactForm({
   contact,
   contactTags,
-  organizationLinks,
-  organizations,
   onSaved,
 }: {
   contact?: Contact;
   contactTags?: string[];
-  organizationLinks?: OrganizationLinkRow[];
-  organizations?: { id: string; name: string }[];
-  onSaved: () => void;
+  onSaved: (state: ContactFormState) => void;
 }) {
   const t = useTranslations("ContactsPage");
   const action = contact ? updateContact.bind(null, contact.id) : createContact;
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   useEffect(() => {
-    if (state.success) onSaved();
+    if (state.success) onSaved(state);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success]);
 
@@ -53,25 +48,12 @@ export function ContactForm({
 
   return (
     <SheetContent>
-      <div className="flex h-full flex-col">
+      <form action={formAction} className="flex h-full flex-col">
         <SheetHeader>
           <SheetTitle>{contact ? t("formTitleEdit") : t("formTitleCreate")}</SheetTitle>
           <SheetDescription>{t("formDescription")}</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4">
-          {/* Vínculos têm o próprio <form> (Server Action separada) — não pode
-              ficar dentro do form principal, HTML não permite form aninhado. */}
-          {contact && (
-            <>
-              <OrganizationLinks
-                contactId={contact.id}
-                links={organizationLinks ?? []}
-                organizations={organizations ?? []}
-              />
-              <div className="my-4 border-t" />
-            </>
-          )}
-          <form id="contact-form" action={formAction}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="full_name">{t("fieldFullName")}</FieldLabel>
@@ -116,17 +98,16 @@ export function ContactForm({
             </Field>
             {errorMessage && <FieldError>{errorMessage}</FieldError>}
           </FieldGroup>
-          </form>
         </div>
         <SheetFooter>
-          <Button type="submit" form="contact-form" disabled={isPending}>
+          <Button type="submit" disabled={isPending}>
             {isPending ? t("submitting") : contact ? t("submitEdit") : t("submitCreate")}
           </Button>
           <SheetClose render={<Button type="button" variant="outline" />}>
             {t("cancel")}
           </SheetClose>
         </SheetFooter>
-      </div>
+      </form>
     </SheetContent>
   );
 }
