@@ -49,8 +49,11 @@ export async function deleteRowIfExists(page: Page, listPath: string, name: stri
     await row.getByRole("link", { name }).click();
     page.once("dialog", (dialog) => dialog.accept());
     await forceClick(page.getByRole("button", { name: "Excluir" }));
-  } catch {
+  } catch (error) {
     // Best-effort de verdade — ver comentário acima. Dado órfão de um teste
-    // falho fica para limpeza manual, não derruba a suíte.
+    // falho fica para limpeza manual, não derruba a suíte — mas o warn
+    // mantém a falha visível no log do CI, em vez de some silenciosamente
+    // (uma regressão real no botão de excluir não pode passar despercebida).
+    console.warn(`deleteRowIfExists: limpeza de "${name}" falhou`, error);
   }
 }

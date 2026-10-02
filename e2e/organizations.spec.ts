@@ -101,6 +101,12 @@ test.describe("organizações", () => {
       await firstEditDialog.getByRole("button", { name: "Salvar" }).click();
       await expect(firstEditDialog).toBeHidden();
       await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
+      // Dá tempo da revalidação do Server Action assentar antes do segundo
+      // edit disparar outra — só em CI (CPU mais restrita que local) duas
+      // revalidações da mesma rota dinâmica em sequência rápida
+      // ocasionalmente produziam um 404 transitório (achado real, só
+      // reproduzia em CI, nunca local — ver docs/roadmap.md 2026-10-02).
+      await page.waitForLoadState("networkidle");
 
       await page.getByRole("button", { name: "Editar" }).click();
       const secondEditDialog = page.getByRole("dialog", { name: "Editar organização" });

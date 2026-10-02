@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists } from "./helpers";
+import { loginAsQa, deleteRowIfExists, forceClick } from "./helpers";
 
 const ORGANIZATIONS_PATH = "/pt-BR/organizations";
 const CONTACTS_PATH = "/pt-BR/contacts";
@@ -51,7 +51,12 @@ test.describe("vínculo contato↔organização", () => {
       await page.locator("#org_id").click();
       await page.getByRole("option", { name: orgNameA }).click();
       await page.locator("#role").fill("Conselheiro");
-      await page.getByRole("button", { name: "Vincular" }).click();
+      // forceClick (ver helpers.ts): no projeto mobile-chromium, um .click()
+      // normal pode travar indefinidamente num botão genuinamente clicável
+      // perto do fim desta página (artefato de hit-test sob emulação de
+      // viewport mobile, não um bug de produto — mesmo achado documentado em
+      // ai-context/skills/04-ui-design-system.md).
+      await forceClick(page.getByRole("button", { name: "Vincular" }));
 
       const linkRowA = page.getByRole("listitem").filter({ hasText: orgNameA });
       await expect(linkRowA).toContainText("Conselheiro");
@@ -62,7 +67,7 @@ test.describe("vínculo contato↔organização", () => {
       await page.locator("#org_id").click();
       await page.getByRole("option", { name: orgNameB }).click();
       await page.locator("#role").fill("Representante");
-      await page.getByRole("button", { name: "Vincular" }).click();
+      await forceClick(page.getByRole("button", { name: "Vincular" }));
 
       const linkRowB = page.getByRole("listitem").filter({ hasText: orgNameB });
       await expect(linkRowB).toContainText("Representante");
