@@ -532,6 +532,14 @@ export type Database = {
         Returns: boolean
       }
       has_role: { Args: { required_roles: string[] }; Returns: boolean }
+      interaction_participant_count: {
+        Args: { p_interaction_id: string }
+        Returns: number
+      }
+      participant_interaction_ids: {
+        Args: { p_participant_id: string; p_participant_type: string }
+        Returns: string[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -39,6 +39,7 @@
     "edit": "Editar",
     "delete": "Excluir",
     "deleteConfirm": "Tem certeza que deseja excluir este contato?",
+    "deleteError": "Não foi possível excluir este contato. Tente novamente.",
     "formTitleCreate": "Novo contato",
     "formTitleEdit": "Editar contato",
     "formDescription": "Dados pessoais do contato (ver ADR-005, LGPD).",

@@ -21,9 +21,13 @@ export type ContactFormState = {
   id?: string;
 };
 
-function revalidateContacts(id?: string) {
+// revalidatePath com o literal "/[locale]/contacts/[id]" (padrão de rota
+// dinâmica) invalida TODAS as páginas de detalhe já renderizadas, não só uma
+// id específica — não há granularidade por id aqui, então nenhum parâmetro é
+// necessário (ver docs do Next.js sobre revalidatePath em rota dinâmica).
+function revalidateContacts() {
   revalidatePath("/[locale]/contacts", "page");
-  if (id) revalidatePath("/[locale]/contacts/[id]", "page");
+  revalidatePath("/[locale]/contacts/[id]", "page");
 }
 
 function splitList(value?: string) {
@@ -104,7 +108,7 @@ export async function createContact(
 
   await syncTags(supabase, data.id, splitList(parsed.data.tags));
 
-  revalidateContacts(data.id);
+  revalidateContacts();
   return { error: null, success: true, id: data.id };
 }
 
@@ -133,15 +137,17 @@ export async function updateContact(
 
   await syncTags(supabase, id, splitList(parsed.data.tags));
 
-  revalidateContacts(id);
+  revalidateContacts();
   return { error: null, success: true };
 }
 
-export async function deleteContact(id: string) {
+export async function deleteContact(id: string): Promise<{ error: boolean }> {
   const supabase = await createClient();
   await cleanupPolymorphicReferences(supabase, "contact", id);
-  await supabase.from("contacts").delete().eq("id", id);
-  revalidateContacts(id);
+  const { error } = await supabase.from("contacts").delete().eq("id", id);
+  if (error) return { error: true };
+  revalidateContacts();
+  return { error: false };
 }
 
 const organizationLinkSchema = z.object({
@@ -183,19 +189,19 @@ export async function addOrganizationLink(
 
   if (error) return { error: "generic" };
 
-  revalidateContacts(contactId);
+  revalidateContacts();
   return { error: null, success: true };
 }
 
 // "Encerrar" nunca é hard-delete — organization_contacts preserva histórico
 // de vínculos (skill 02-data-modeling), então isso só popula end_date.
-export async function endOrganizationLink(linkId: string, contactId: string) {
+export async function endOrganizationLink(linkId: string) {
   const supabase = await createClient();
   await supabase
     .from("organization_contacts")
     .update({ end_date: new Date().toISOString().slice(0, 10) })
     .eq("id", linkId);
-  revalidateContacts(contactId);
+  revalidateContacts();
 }
 
 const INTERACTION_TYPES = ["reuniao", "email", "chamada", "evento_associativo"] as const;
@@ -259,6 +265,6 @@ export async function createInteraction(
 
   if (participantError) return { error: "generic" };
 
-  revalidateContacts(contactId);
+  revalidateContacts();
   return { error: null, success: true };
 }

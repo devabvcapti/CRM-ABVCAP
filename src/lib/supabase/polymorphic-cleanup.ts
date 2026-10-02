@@ -17,11 +17,17 @@ export async function cleanupPolymorphicReferences(
     .eq("entity_type", entityType)
     .eq("entity_id", entityId);
 
-  const { data: participantRows } = await supabase
-    .from("interaction_participants")
-    .select("interaction_id")
-    .eq("participant_type", entityType)
-    .eq("participant_id", entityId);
+  // A policy de SELECT de interaction_participants é filtrada por
+  // classification_level/has_grant da interaction, mas as policies de DELETE
+  // são só por papel (admin/gestor/analista), sem checar classificação — um
+  // .select() comum aqui perderia interactions CONFIDENTIAL/RESTRICTED que o
+  // .delete() abaixo apaga de qualquer forma, deixando-as órfãs sem nunca
+  // serem detectadas. participant_interaction_ids é SECURITY DEFINER
+  // justamente para enxergar tudo que o DELETE em lote também enxerga.
+  const { data: interactionIds } = await supabase.rpc("participant_interaction_ids", {
+    p_participant_type: entityType,
+    p_participant_id: entityId,
+  });
 
   await supabase
     .from("interaction_participants")
@@ -31,13 +37,14 @@ export async function cleanupPolymorphicReferences(
 
   // Uma interaction sem nenhum participante restante não é alcançável por
   // nenhuma tela — remove também, em vez de deixar lixo acumulando.
-  const interactionIds = [...new Set((participantRows ?? []).map((row) => row.interaction_id))];
-  for (const interactionId of interactionIds) {
-    const { count } = await supabase
-      .from("interaction_participants")
-      .select("id", { count: "exact", head: true })
-      .eq("interaction_id", interactionId);
-    if (!count) {
+  // interaction_participant_count é SECURITY DEFINER pelo mesmo motivo acima
+  // (contagem não pode ser filtrada por classificação) e expõe erro de forma
+  // explícita em vez de um `count` nulo ser tratado como zero.
+  for (const interactionId of new Set(interactionIds ?? [])) {
+    const { data: count, error } = await supabase.rpc("interaction_participant_count", {
+      p_interaction_id: interactionId,
+    });
+    if (!error && count === 0) {
       await supabase.from("interactions").delete().eq("id", interactionId);
     }
   }

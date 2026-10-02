@@ -35,7 +35,11 @@ export function ContactEditDelete({
 
   async function handleDelete() {
     if (!window.confirm(t("deleteConfirm"))) return;
-    await deleteContact(contact.id);
+    const { error } = await deleteContact(contact.id);
+    if (error) {
+      window.alert(t("deleteError"));
+      return;
+    }
     router.push("/contacts");
   }
 
