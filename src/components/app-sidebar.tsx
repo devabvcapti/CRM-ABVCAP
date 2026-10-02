@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { LayoutDashboardIcon, Building2Icon, LogOutIcon } from "lucide-react";
+import { LayoutDashboardIcon, Building2Icon, UsersIcon, LogOutIcon } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
 import {
   Sidebar,
@@ -18,7 +18,7 @@ import {
 import { logout } from "@/app/[locale]/login/actions";
 
 type NavItem = {
-  href: "/dashboard" | "/organizations";
+  href: "/dashboard" | "/organizations" | "/contacts";
   label: string;
   icon: React.ReactNode;
 };
@@ -30,7 +30,7 @@ export function AppSidebar({
   logoutLabel,
 }: {
   locale: string;
-  navLabels: { dashboard: string; organizations: string };
+  navLabels: { dashboard: string; organizations: string; contacts: string };
   profileName: string;
   logoutLabel: string;
 }) {
@@ -41,6 +41,11 @@ export function AppSidebar({
       href: "/dashboard",
       label: navLabels.dashboard,
       icon: <LayoutDashboardIcon aria-hidden="true" />,
+    },
+    {
+      href: "/contacts",
+      label: navLabels.contacts,
+      icon: <UsersIcon aria-hidden="true" />,
     },
     {
       href: "/organizations",
