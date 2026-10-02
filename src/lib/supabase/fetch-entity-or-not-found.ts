@@ -1,25 +1,35 @@
 import "server-only";
 import type { createClient } from "./server";
 
-// Achado real em CI (nunca reproduziu localmente): Supabase retorna
-// data=null tanto para "a linha não existe" quanto para uma falha
-// transiente de conexão/query — páginas de detalhe chamando notFound() só
-// com base em `!data` tratam as duas situações como a mesma coisa,
-// produzindo um 404 falso numa instabilidade de rede momentânea. Uma
-// segunda tentativa resolve o caso transiente sem mascarar o caso real
-// (linha genuinamente ausente continua null nas duas tentativas).
+// Achado real em CI (nunca reproduziu localmente, mesmo depois de dezenas
+// de execuções): logo após um insert/update, um select imediato pelo
+// mesmo id às vezes retorna "PGRST116 — 0 rows" (não um erro de conexão,
+// um 0-rows de verdade) — janela real de inconsistência eventual entre
+// escrita e leitura seguinte, que só aparece sob a CPU/rede mais
+// restrita do runner de CI, nunca local. Páginas de detalhe chamando
+// notFound() só com base em `!data` tratam essa janela transitória igual
+// a "a linha nunca existiu". Duas tentativas extras com um pequeno atraso
+// cobrem essa janela sem mascarar o caso genuíno (linha realmente ausente
+// continua null nas três tentativas).
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchEntityOrNull<T>(
   supabase: Awaited<ReturnType<typeof createClient>>,
   table: "organizations" | "contacts",
   id: string,
 ): Promise<T | null> {
-  const first = await supabase.from(table).select("*").eq("id", id).single();
-  if (first.data) return first.data as T;
-  console.error(`[fetchEntityOrNull] first attempt failed table=${table} id=${id}`, first.error);
+  const delaysMs = [0, 150, 400];
+  let lastError: unknown = null;
 
-  const retry = await supabase.from(table).select("*").eq("id", id).single();
-  if (!retry.data) {
-    console.error(`[fetchEntityOrNull] retry also failed table=${table} id=${id}`, retry.error);
+  for (const delay of delaysMs) {
+    if (delay > 0) await sleep(delay);
+    const { data, error } = await supabase.from(table).select("*").eq("id", id).single();
+    if (data) return data as T;
+    lastError = error;
   }
-  return (retry.data as T) ?? null;
+
+  console.error(`[fetchEntityOrNull] gave up after retries table=${table} id=${id}`, lastError);
+  return null;
 }
