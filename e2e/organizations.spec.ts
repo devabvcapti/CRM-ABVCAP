@@ -101,12 +101,17 @@ test.describe("organizações", () => {
       await firstEditDialog.getByRole("button", { name: "Salvar" }).click();
       await expect(firstEditDialog).toBeHidden();
       await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
-      // Dá tempo da revalidação do Server Action assentar antes do segundo
-      // edit disparar outra — só em CI (CPU mais restrita que local) duas
-      // revalidações da mesma rota dinâmica em sequência rápida
-      // ocasionalmente produziam um 404 transitório (achado real, só
-      // reproduzia em CI, nunca local — ver docs/roadmap.md 2026-10-02).
-      await page.waitForLoadState("networkidle");
+      // Recarrega a página via navegação de verdade (não o refresh
+      // client-side automático do Server Action) antes do segundo edit —
+      // só em CI (nunca local, mesmo após dezenas de execuções) duas
+      // revalidações da mesma rota dinâmica em sequência rápida batiam um
+      // 404 real (achado via log de diagnóstico direto no servidor: erro
+      // genuíno do PostgREST "0 rows", não falha de conexão). Um reload
+      // explícito busca os dados do zero depois de o Salvar já ter
+      // respondido com sucesso, em vez de depender do timing do refresh
+      // automático — ver docs/roadmap.md 2026-10-02.
+      await page.reload();
+      await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
 
       await page.getByRole("button", { name: "Editar" }).click();
       const secondEditDialog = page.getByRole("dialog", { name: "Editar organização" });
