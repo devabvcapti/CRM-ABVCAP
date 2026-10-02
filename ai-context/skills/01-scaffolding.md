@@ -20,6 +20,9 @@ Inicializar a fundação técnica do projeto — Next.js (App Router) + TypeScri
 - Ícones em `public/icon-192.png`, `icon-512.png`, `icon-512-maskable.png` (+ `apple-icon.png`, `favicon.ico`) gerados a partir do logo oficial branco (`Design System/logos/ABVCAP BRANCO FUNDO TRANSPARENTE (3).png`) sobre o azul da marca `#112468` — nunca usar um ícone placeholder/genérico quando o asset de marca real existe.
 - Verificado via Playwright: service worker chega a `activated`, manifest linkado corretamente, sem erros de página.
 
+## Incidente real (2026-10-02) — toda env var nova precisa ir pro Vercel também
+Adicionar uma env var só em `.env.local`/`.env.example` **não é suficiente**: derrubou a produção inteira (500 em toda rota) porque `src/proxy.ts` chama o Supabase em todo request, e as env vars nunca tinham sido criadas nas Environment Variables do projeto Vercel (`vercel env ls production` mostrava zero vars configuradas). Toda vez que uma env var nova for introduzida: `vercel env add <NOME> production` (e `preview`/`development`) **no mesmo passo** em que ela é adicionada ao `.env.local`, nunca como tarefa separada depois. Detalhe: a CLI recusa `NEXT_PUBLIC_*` que "parece credencial" (como a anon key) sem `--type config` explícito — isso é esperado e correto para a anon key (pública por design, protegida por RLS, não por sigilo), não usar `--type secret` nesse caso. Depois de adicionar env var em produção, **sempre redeployar** (`vercel --prod`) — `NEXT_PUBLIC_*` é embutido em build-time, não pega efeito em um build já existente. Ver `docs/roadmap.md` → "Incidente — 500 em produção" para o relato completo.
+
 ## Passos
 1. `npx create-next-app@latest` com App Router, TypeScript, Tailwind, ESLint — `strict: true` no `tsconfig.json`.
 2. Instalar e inicializar `shadcn/ui`.
