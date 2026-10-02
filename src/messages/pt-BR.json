@@ -5,5 +5,22 @@
     "status": "Em construção — Fase 0: fundação técnica do projeto.",
     "switchLocale": "View in English",
     "switchLocaleTarget": "en-US"
+  },
+  "LoginPage": {
+    "title": "CRM ABVCAP",
+    "subtitle": "Acesso restrito a colaboradores ABVCAP.",
+    "emailLabel": "E-mail",
+    "passwordLabel": "Senha",
+    "submit": "Entrar",
+    "submitting": "Entrando…",
+    "errorInvalidCredentials": "E-mail ou senha incorretos.",
+    "errorGeneric": "Não foi possível entrar. Tente novamente.",
+    "errorInvalidEmail": "Informe um e-mail válido.",
+    "errorRequiredPassword": "Informe sua senha."
+  },
+  "DashboardPage": {
+    "welcome": "Bem-vindo, {email}",
+    "placeholder": "As telas de Contatos e Organizações chegam na Fase 1.",
+    "logout": "Sair"
   }
 }
