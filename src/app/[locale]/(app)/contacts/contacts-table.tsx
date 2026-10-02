@@ -109,7 +109,10 @@ export function ContactsTable({
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        {/* key força remount a cada abertura — mesma razão documentada em
+            organizations-table.tsx (useActionState preso em success=true). */}
         <ContactForm
+          key={editing?.id ?? "create"}
           contact={editing}
           contactTags={editing ? tagsByContact[editing.id] : undefined}
           onSaved={() => setSheetOpen(false)}

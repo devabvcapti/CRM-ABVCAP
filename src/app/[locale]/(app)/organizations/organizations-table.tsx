@@ -108,7 +108,16 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <OrganizationForm organization={editing} onSaved={() => setSheetOpen(false)} />
+        {/* key força remount a cada abertura — sem isso, o useActionState do
+            form reaproveita a instância anterior e, como `state.success` já
+            era `true` desde a última submissão, o useEffect que fecha o
+            Sheet nunca via o valor "mudar" de novo (true -> true). Achado
+            via teste E2E real (a edição nunca fechava o Sheet). */}
+        <OrganizationForm
+          key={editing?.id ?? "create"}
+          organization={editing}
+          onSaved={() => setSheetOpen(false)}
+        />
       </Sheet>
     </div>
   );
