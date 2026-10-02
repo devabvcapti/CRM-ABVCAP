@@ -143,7 +143,9 @@ export function OrganizationLinks({
                   variant="outline"
                   size="sm"
                   disabled={isEnding}
-                  onClick={() => startEndTransition(() => endOrganizationLink(link.id))}
+                  onClick={() =>
+                    startEndTransition(() => endOrganizationLink(link.id))
+                  }
                 >
                   {t("linkEnd")}
                 </Button>

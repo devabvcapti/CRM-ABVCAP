@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { cleanupPolymorphicReferences } from "@/lib/supabase/polymorphic-cleanup";
 import { ORG_TYPES, TIERS, STATUSES } from "./constants";
 
 const organizationSchema = z.object({
@@ -100,6 +101,10 @@ export async function updateOrganization(
 
 export async function deleteOrganization(id: string) {
   const supabase = await createClient();
+  // organization_contacts.org_id tem FK real com ON DELETE CASCADE, mas
+  // entity_tags/interaction_participants são polimórficos (sem FK) — ver
+  // ai-context/skills/02-data-modeling.md.
+  await cleanupPolymorphicReferences(supabase, "organization", id);
   await supabase.from("organizations").delete().eq("id", id);
   revalidatePath("/[locale]/organizations", "page");
 }
