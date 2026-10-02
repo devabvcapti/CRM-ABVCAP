@@ -101,6 +101,12 @@ test.describe("organizações", () => {
     // Regressão equivalente à de Contatos (ver skill 08-testing-quality.md):
     // reabrir o Sheet de edição sem remontar o form via nonce deixa o
     // useActionState preso em success=true a partir da segunda edição.
+    // Timeout maior que o padrão: reloadUntilVisible pode precisar de várias
+    // tentativas reais (não só asserções que já têm retry embutido) para
+    // cobrir a janela de PGRST116 em CI — sem isso, o próprio retry de
+    // reload consome o orçamento do teste antes de chegar na segunda
+    // edição (ver docs/roadmap.md 2026-10-02).
+    test.setTimeout(60000);
     const name = `E2E Org Edit Twice ${Date.now()}`;
     const renamedOnce = `${name} (v2)`;
     const renamedTwice = `${name} (v3)`;
