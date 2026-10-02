@@ -52,3 +52,6 @@ next-env.d.ts
 # nao precisa de nenhuma delas no repo. Logos e o PDF do guia (ambos
 # propriedade da ABVCAP) continuam versionados.
 /Design System/Fontes
+
+.vercel
+.env*

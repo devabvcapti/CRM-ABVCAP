@@ -4,6 +4,12 @@ Fonte da verdade do progresso real. Atualizar ao final de cada fase (ver `ai-con
 
 Baseado no Anexo D do documento normativo (`ARQUITERURA/`).
 
+## Deploy
+
+- **Produção**: https://crm-abvcap.vercel.app — projeto Vercel `devabvcaptis-projects/crm-abvcap`, conectado ao GitHub (`devabvcapti/CRM-ABVCAP`). Todo push em `master` gera deploy automático de produção.
+- Deployment Protection (Vercel Authentication) está **ativa** — só quem tem conta no time Vercel abre o link direto. Para apresentar a colaboradores sem conta Vercel, existe um secret de "Protection Bypass" gerado em 2026-10-01 (não versionado aqui por segurança — pedir o link completo a quem administra o projeto). Formato: `https://crm-abvcap.vercel.app/?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=true`.
+- Reavaliar quando o app tiver dados reais: manter Deployment Protection ativa é a postura correta dado o ADR-001 (classificação de dados), mesmo após abrirmos para mais colaboradores.
+
 | Fase | Prazo sugerido | Status | Entregas principais |
 |---|---|---|---|
 | **Fase 0 — Fundação** | Semanas 1–4 | 🟡 Em andamento | Next.js + TS estrito ✅; Tailwind v4 ✅; shadcn/ui (Base UI + Nova) ✅; Supabase + migrations iniciais 🔲; RLS ativa 🔲; `entity_access_grants` + `organization_id` em todas as tabelas 🔲; i18n scaffolding 🔲; **manifest.json + service worker (PWA)** 🔲; CI/CD 🔲 |
