@@ -15,7 +15,11 @@ export async function fetchEntityOrNull<T>(
 ): Promise<T | null> {
   const first = await supabase.from(table).select("*").eq("id", id).single();
   if (first.data) return first.data as T;
+  console.error(`[fetchEntityOrNull] first attempt failed table=${table} id=${id}`, first.error);
 
   const retry = await supabase.from(table).select("*").eq("id", id).single();
+  if (!retry.data) {
+    console.error(`[fetchEntityOrNull] retry also failed table=${table} id=${id}`, retry.error);
+  }
   return (retry.data as T) ?? null;
 }
