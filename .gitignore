@@ -60,3 +60,9 @@ next-env.d.ts
 # nunca migrations/config.toml (esses sao versionados normalmente)
 /supabase/.temp
 /supabase/.branches
+
+# documento de planejamento marcado "uso interno" pelo proprio dono do
+# projeto -- removido do historico do git (2026-10-02, git filter-repo)
+# porque o repositorio passou a ser publico temporariamente. Mantido
+# local, nunca mais versionado enquanto essa classificacao valer.
+/ARQUITERURA
