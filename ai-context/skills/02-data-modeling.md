@@ -10,6 +10,13 @@ Traduzir o modelo de dados (Anexo B do documento normativo) em migrations SQL ve
 - **Skills do Claude Code a invocar**: `supabase`, `data:sql-queries`.
 - **Documentação via Context7**: `ctx7 library "Supabase" "..."` para sintaxe de migrations, CLI (`supabase gen types`) e particularidades do Postgres gerenciado.
 
+## Implementado em 2026-10-01 — ver antes de mexer em migrations de novo
+- Migration `0001_crm_init.sql` já cria `crm_abvcap.user_profiles`, `crm_abvcap.entity_access_grants` e `crm_abvcap.audit_log` (as três tabelas de Fase 0 do Anexo B), todas com RLS + policies no mesmo arquivo. Próximas entidades (`organizations`, `contacts`, `organization_contacts`, etc., Fase 1) entram em migrations novas, nunca editando esta.
+- **Expor o schema na API não é suficiente.** Depois de `create schema`, o Postgres ainda nega `42501 permission denied for schema` para `anon`/`authenticated`/`service_role` até rodar `GRANT USAGE ON SCHEMA ...` + `GRANT ALL ON ALL TABLES/ROUTINES/SEQUENCES IN SCHEMA ...` + `ALTER DEFAULT PRIVILEGES ...` (replicado para toda tabela nova automaticamente). Isso está em `0002_crm_grants.sql` — **toda migration de tabela nova em `crm_abvcap` já herda esses grants via `ALTER DEFAULT PRIVILEGES`, não precisa repetir.** RLS continua sendo a única linha de defesa real linha-a-linha; os GRANTs são só o pré-requisito do PostgREST.
+- `organization_id` (chave de tenant, ADR-002) por enquanto usa um UUID fixo de tenant único como `default` (não há tabela de tenants ainda — "adormecido" de verdade). Não criar FK para uma tabela de tenants inexistente.
+- CLI do Supabase neste projeto é dependência local (`pnpm add -D supabase`), não instalação global — Windows não suporta o binário global oficial. Rodar sempre via `pnpm exec supabase ...`, com `SUPABASE_ACCESS_TOKEN` (Personal Access Token) e `SUPABASE_DB_PASSWORD` como env vars transientes do comando, nunca em arquivo versionado nem em `.env.local`.
+- Clients em `src/lib/supabase/{browser,server,admin}.ts` já existem, todos com `db: { schema: 'crm_abvcap' }` explícito. `admin.ts` é protegido com o pacote `server-only`.
+
 ## Passos
 1. Uma migration numerada por unidade lógica de mudança, com prefixo `crm_` (`NNN_crm_descricao.sql` — ver ADR-006: o histórico de migrations do Supabase CLI é único para todo o projeto, compartilhado com a outra aplicação hospedada nele).
 2. Toda migration que cria tabela nova garante o schema primeiro: `create schema if not exists crm_abvcap;`. Toda tabela vive em `crm_abvcap.<nome>`, nunca em `public.<nome>` nem sem o prefixo de schema nas referências (FKs, functions, policies).

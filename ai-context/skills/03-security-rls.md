@@ -10,6 +10,12 @@ Escrever e testar policies de Row Level Security, implementar a matriz de classi
 - **Skills do Claude Code a invocar**: `supabase`, `security-review`.
 - **Documentação via Context7**: `ctx7 library "Supabase" "Row Level Security policies"` para sintaxe atual de `CREATE POLICY` e funções auxiliares (`auth.uid()`, etc.).
 
+## Implementado em 2026-10-01 — ver antes de escrever policy nova
+- `user_profiles`, `entity_access_grants` e `audit_log` (`0001_crm_init.sql`) já seguem o padrão: RLS habilitada, policies default-deny por role interna (`admin`/`gestor`/`analista`/`leitura`), nunca por filtro client-side.
+- Para checar papel/perfil do usuário autenticado dentro de uma policy **sem recursão** (policy de `user_profiles` que precisa consultar `user_profiles`), usar funções `SECURITY DEFINER` dedicadas: `crm_abvcap.current_profile_id()` e `crm_abvcap.has_role(text[])`, já criadas em `0001_crm_init.sql` — reutilizar em toda policy nova que precise saber "quem é o usuário atual" ou "ele é admin/gestor".
+- `audit_log` é imutável por **ausência deliberada** de policy de `UPDATE`/`DELETE` (com RLS ativo, nenhuma role da API consegue alterar/apagar — só `service_role` via acesso direto fora da API contorna isso). Não adicionar policy de update nela sem um ADR justificando a mudança.
+- Lembrar sempre do pré-requisito de `GRANT` em nível Postgres (ver nota em `02-data-modeling.md`) — RLS só é avaliada depois que o `GRANT` de tabela libera a tentativa; sem ele o erro é `42501` antes mesmo de chegar nas policies.
+
 ## Passos
 1. Classificar a tabela/coluna em um dos 4 níveis: `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.
 2. `ENABLE ROW LEVEL SECURITY` — sem exceção, mesmo para tabelas aparentemente públicas.

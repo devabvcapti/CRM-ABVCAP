@@ -55,3 +55,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# supabase CLI: cache local (project-ref, pooler-url etc.) e link de branches,
+# nunca migrations/config.toml (esses sao versionados normalmente)
+/supabase/.temp
+/supabase/.branches
