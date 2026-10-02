@@ -3,9 +3,13 @@ import { getTranslations } from "next-intl/server";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
+import { fetchEntityOrNull } from "@/lib/supabase/fetch-entity-or-not-found";
 import { InteractionsTimeline, type InteractionRow } from "@/components/shared/interactions-timeline";
 import { ContactLinks, type ContactLinkRow } from "../contact-links";
 import { OrganizationEditDelete } from "./organization-edit-delete";
+import type { Database } from "@/types/database";
+
+type Organization = Database["crm_abvcap"]["Tables"]["organizations"]["Row"];
 
 function initials(name: string) {
   return name
@@ -32,11 +36,7 @@ export default async function OrganizationDetailPage({
   const t = await getTranslations("OrganizationsPage");
   const supabase = await createClient();
 
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const organization = await fetchEntityOrNull<Organization>(supabase, "organizations", id);
   if (!organization) notFound();
 
   const [{ data: contactLinks }, { data: contacts }, { data: participantRows }] =
