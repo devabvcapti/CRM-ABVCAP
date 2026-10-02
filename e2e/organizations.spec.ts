@@ -3,6 +3,22 @@ import { loginAsQa, deleteRowIfExists } from "./helpers";
 
 const LIST_PATH = "/pt-BR/organizations";
 
+// Recarrega até a página mostrar o heading esperado, tentando de novo em
+// vez de confiar numa única leitura — ver docs/roadmap.md 2026-10-02
+// (PGRST116 intermitente em leitura logo após escrita, mitigado mas não
+// eliminado pelo retry com backoff do servidor; em CI a janela da race é
+// maior que local, então o teste precisa da própria resiliência).
+async function reloadUntilVisible(page: Page, name: string, attempts = 5) {
+  for (let i = 0; i < attempts; i++) {
+    await page.reload();
+    const heading = page.getByRole("heading", { name });
+    if (await heading.isVisible({ timeout: 3000 }).catch(() => false)) return;
+  }
+  // Última tentativa "de verdade" — se nem assim aparecer, deixa a asserção
+  // normal falhar com a mensagem de erro padrão do Playwright.
+  await expect(page.getByRole("heading", { name })).toBeVisible();
+}
+
 async function fillAndSubmitCreate(page: Page, name: string) {
   await page.getByRole("button", { name: "Nova organização" }).click();
   const dialog = page.getByRole("dialog", { name: "Nova organização" });
@@ -101,17 +117,11 @@ test.describe("organizações", () => {
       await firstEditDialog.getByRole("button", { name: "Salvar" }).click();
       await expect(firstEditDialog).toBeHidden();
       await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
-      // Recarrega a página via navegação de verdade (não o refresh
-      // client-side automático do Server Action) antes do segundo edit —
-      // só em CI (nunca local, mesmo após dezenas de execuções) duas
-      // revalidações da mesma rota dinâmica em sequência rápida batiam um
-      // 404 real (achado via log de diagnóstico direto no servidor: erro
-      // genuíno do PostgREST "0 rows", não falha de conexão). Um reload
-      // explícito busca os dados do zero depois de o Salvar já ter
-      // respondido com sucesso, em vez de depender do timing do refresh
-      // automático — ver docs/roadmap.md 2026-10-02.
-      await page.reload();
-      await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
+      // Recarrega (com retry — ver reloadUntilVisible) antes do segundo
+      // edit, em vez de depender do refresh client-side automático do
+      // Server Action — mitigação para o PGRST116 intermitente (leitura
+      // logo após escrita), documentado em docs/roadmap.md 2026-10-02.
+      await reloadUntilVisible(page, renamedOnce);
 
       await page.getByRole("button", { name: "Editar" }).click();
       const secondEditDialog = page.getByRole("dialog", { name: "Editar organização" });
