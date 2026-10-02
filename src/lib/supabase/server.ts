@@ -11,6 +11,17 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       db: { schema: "crm_abvcap" },
+      // supabase-js usa o fetch global se nenhum for passado — em Server
+      // Components/Actions isso é o fetch do próprio Next.js, que cacheia
+      // GET por padrão (Data Cache) a menos que a chamada opte por não
+      // cachear. Toda query do PostgREST é um GET simples sem esse opt-out,
+      // então sem isto aqui uma leitura logo após um insert/update pode
+      // servir uma resposta cacheada de antes da escrita — causa real de
+      // "PGRST116 (0 rows)" intermitente numa página de detalhe recém-criada
+      // (achado via systematic-debugging, 2026-10-02, ver docs/roadmap.md).
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
