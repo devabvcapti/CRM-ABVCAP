@@ -17,15 +17,20 @@ import {
 import type { Database } from "@/types/database";
 import { deleteContact } from "./actions";
 import { ContactForm } from "./contact-form";
+import type { OrganizationLinkRow } from "./organization-links";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
 export function ContactsTable({
   contacts,
   tagsByContact,
+  linksByContact,
+  organizations,
 }: {
   contacts: Contact[];
   tagsByContact: Record<string, string[]>;
+  linksByContact: Record<string, OrganizationLinkRow[]>;
+  organizations: { id: string; name: string }[];
 }) {
   const t = useTranslations("ContactsPage");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -123,6 +128,8 @@ export function ContactsTable({
           key={formKey}
           contact={editing}
           contactTags={editing ? tagsByContact[editing.id] : undefined}
+          organizationLinks={editing ? linksByContact[editing.id] : undefined}
+          organizations={organizations}
           onSaved={() => setSheetOpen(false)}
         />
       </Sheet>
