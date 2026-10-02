@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Montserrat, Geist_Mono } from "next/font/google";
 import { locale } from "next/root-params";
 import { NextIntlClientProvider } from "next-intl";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,6 +25,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CRM ABVCAP",
   description: "CRM de inteligência de relacionamento institucional da ABVCAP.",
+  applicationName: "CRM ABVCAP",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CRM ABVCAP",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#112468",
 };
 
 export function generateStaticParams() {
@@ -38,13 +52,15 @@ export default async function RootLayout({ children }: LayoutProps<"/[locale]">)
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <NextIntlClientProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <TooltipProvider>
-              <Toaster>{children}</Toaster>
-            </TooltipProvider>
-          </ThemeProvider>
-        </NextIntlClientProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+          <NextIntlClientProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <TooltipProvider>
+                <Toaster>{children}</Toaster>
+              </TooltipProvider>
+            </ThemeProvider>
+          </NextIntlClientProvider>
+        </SerwistProvider>
       </body>
     </html>
   );

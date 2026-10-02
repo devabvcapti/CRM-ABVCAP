@@ -10,6 +10,16 @@ Inicializar a fundação técnica do projeto — Next.js (App Router) + TypeScri
 - **Skills do Claude Code a invocar**: `vercel:bootstrap`, `vercel:nextjs`, `vercel:vercel-cli`, `shadcn`.
 - **Documentação via Context7**: `ctx7 library "Next.js" "..."` / `ctx7 library "Tailwind CSS" "..."` para configuração de App Router, ESLint e setup inicial (ver `ai-context/conventions.md`).
 
+## Implementado em 2026-10-01 — PWA (ADR-003), ver antes de mexer de novo
+- Service worker via `@serwist/turbopack` (não `@serwist/next`/`next-pwa` — aqueles usam o compilador webpack, este projeto builda com Turbopack). Pacotes: `@serwist/turbopack`, `serwist`, `esbuild` (devDependencies).
+- `next.config.ts` envolvido com `withSerwist(withNextIntl(nextConfig))` — compõe com o plugin do next-intl, não substitui.
+- `src/app/sw.ts`: worker source, usa `defaultCache` de `@serwist/turbopack/worker` (cache mínima de app shell, nenhuma rota de API/dados cacheada — por ora é só isso que o ADR-003 pede). **Excluído do `tsconfig.json` raiz** (`exclude`) porque usa o lib `webworker`, incompatível com o `lib: ["dom", ...]` do resto do projeto — tem um `tsconfig.worker.json` próprio só para checagem manual/IDE.
+- Rota que serve o worker compilado **precisa ser um segmento dinâmico `src/app/serwist/[path]/route.ts`** (não um literal `sw.js/route.ts` — o tipo de `createSerwistRoute` exige `params: Promise<{ path: string }>`, e ele serve `/serwist/sw.js` *e* `/serwist/sw.js.map` sob o mesmo handler). Errar isso quebra o build (`next build` falha no type-check da rota).
+- `SerwistProvider` (de `@serwist/turbopack/react`) envolve o `<body>` em `src/app/[locale]/layout.tsx`, com `swUrl="/serwist/sw.js"`.
+- `src/app/manifest.ts` (convenção de arquivo do Next, raiz de `app/`, fora de `[locale]`) gera `/manifest.webmanifest` automaticamente — não setar `metadata.manifest` manualmente no layout, duplicaria a tag.
+- Ícones em `public/icon-192.png`, `icon-512.png`, `icon-512-maskable.png` (+ `apple-icon.png`, `favicon.ico`) gerados a partir do logo oficial branco (`Design System/logos/ABVCAP BRANCO FUNDO TRANSPARENTE (3).png`) sobre o azul da marca `#112468` — nunca usar um ícone placeholder/genérico quando o asset de marca real existe.
+- Verificado via Playwright: service worker chega a `activated`, manifest linkado corretamente, sem erros de página.
+
 ## Passos
 1. `npx create-next-app@latest` com App Router, TypeScript, Tailwind, ESLint — `strict: true` no `tsconfig.json`.
 2. Instalar e inicializar `shadcn/ui`.
