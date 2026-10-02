@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,25 +29,29 @@ export type OrganizationLinkRow = {
 
 const initialState: OrganizationLinkState = { error: null };
 
-export function OrganizationLinks({
+// Form isolado num componente próprio, remontado via `key` do pai a cada
+// submissão bem-sucedida — mesmo bug documentado em skill 08 (useActionState
+// preso em success=true entre duas submissões seguidas) se reproduziria aqui
+// também, e um `form.reset()` sozinho não limpa o Select da Base UI (não
+// escuta o evento nativo "reset", mantém o valor interno selecionado).
+function AddLinkForm({
   contactId,
-  links,
   organizations,
+  onAdded,
 }: {
   contactId: string;
-  links: OrganizationLinkRow[];
   organizations: { id: string; name: string }[];
+  onAdded: () => void;
 }) {
   const t = useTranslations("ContactsPage");
   const [state, formAction, isPending] = useActionState(
     addOrganizationLink.bind(null, contactId),
     initialState,
   );
-  const [isEnding, startEndTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.success) formRef.current?.reset();
+    if (state.success) onAdded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success]);
 
   const errorMessage =
@@ -60,6 +64,59 @@ export function OrganizationLinks({
           : state.error === "generic"
             ? t("errorGeneric")
             : undefined;
+
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="org_id">{t("linkFieldOrg")}</FieldLabel>
+          <Select name="org_id" required>
+            <SelectTrigger id="org_id" className="w-full">
+              <SelectValue placeholder={t("selectPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {organizations.map((organization) => (
+                <SelectItem key={organization.id} value={organization.id}>
+                  {organization.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="role">{t("linkFieldRole")}</FieldLabel>
+          <Input id="role" name="role" />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="start_date">{t("linkFieldStartDate")}</FieldLabel>
+          <Input
+            id="start_date"
+            name="start_date"
+            type="date"
+            defaultValue={new Date().toISOString().slice(0, 10)}
+          />
+        </Field>
+        {errorMessage && <FieldError>{errorMessage}</FieldError>}
+        <Button type="submit" variant="outline" disabled={isPending}>
+          {isPending ? t("submitting") : t("linkAdd")}
+        </Button>
+      </FieldGroup>
+    </form>
+  );
+}
+
+export function OrganizationLinks({
+  contactId,
+  links,
+  organizations,
+}: {
+  contactId: string;
+  links: OrganizationLinkRow[];
+  organizations: { id: string; name: string }[];
+}) {
+  const t = useTranslations("ContactsPage");
+  const [isEnding, startEndTransition] = useTransition();
+  const [addFormKey, setAddFormKey] = useState(0);
 
   return (
     <div className="flex flex-col gap-3">
@@ -96,42 +153,12 @@ export function OrganizationLinks({
         </ul>
       )}
 
-      <form ref={formRef} action={formAction} className="flex flex-col gap-2">
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="org_id">{t("linkFieldOrg")}</FieldLabel>
-            <Select name="org_id" required>
-              <SelectTrigger id="org_id" className="w-full">
-                <SelectValue placeholder={t("selectPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {organizations.map((organization) => (
-                  <SelectItem key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="role">{t("linkFieldRole")}</FieldLabel>
-            <Input id="role" name="role" />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="start_date">{t("linkFieldStartDate")}</FieldLabel>
-            <Input
-              id="start_date"
-              name="start_date"
-              type="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
-            />
-          </Field>
-          {errorMessage && <FieldError>{errorMessage}</FieldError>}
-          <Button type="submit" variant="outline" disabled={isPending}>
-            {isPending ? t("submitting") : t("linkAdd")}
-          </Button>
-        </FieldGroup>
-      </form>
+      <AddLinkForm
+        key={addFormKey}
+        contactId={contactId}
+        organizations={organizations}
+        onAdded={() => setAddFormKey((key) => key + 1)}
+      />
     </div>
   );
 }

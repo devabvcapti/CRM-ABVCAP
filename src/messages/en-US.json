@@ -66,6 +66,7 @@
     "linkFieldOrg": "Organization",
     "linkFieldRole": "Role",
     "linkFieldStartDate": "Start date",
+    "selectPlaceholder": "Select",
     "linkErrorRequiredOrg": "Select the organization.",
     "linkErrorRequiredRole": "Enter the role.",
     "linkErrorRequiredDate": "Enter the start date."
