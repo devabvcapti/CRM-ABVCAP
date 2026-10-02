@@ -45,3 +45,10 @@ next-env.d.ts
 
 # estado interno de runtime do Claude Code (nao e conteudo do projeto)
 .claude/scheduled_tasks.lock
+
+# fontes comerciais (MuseoSans/MyriadPro: licenca Exljbris/Adobe, nao
+# redistribuir) e de origem incerta (DaxlinePro). FiraSans tem OFL mas
+# fica junto por simplicidade -- o app usa Montserrat via Google Fonts,
+# nao precisa de nenhuma delas no repo. Logos e o PDF do guia (ambos
+# propriedade da ABVCAP) continuam versionados.
+/Design System/Fontes

@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
     // See ai-context/conventions.md.
     "src/components/reui/**",
     "src/components/charts/**",
+    // Clone de referencia (marmelab/atomic-crm), nunca e codigo do projeto.
+    // Gitignored; ver ai-context/AGENTS.md.
+    "atomic-crm/**",
   ]),
 ]);
 
