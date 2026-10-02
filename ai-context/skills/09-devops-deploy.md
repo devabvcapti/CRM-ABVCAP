@@ -9,6 +9,12 @@ Gerenciar pipelines de CI, ambientes de staging/produção, observabilidade e ro
 - **Skills do Claude Code a invocar**: `vercel:deploy`, `vercel:deployments-cicd`, `vercel:env`, `vercel:vercel-cli`, `vercel:status`.
 - **Documentação via Context7**: `ctx7 library "GitHub Actions" "..."` para sintaxe de workflow; `ctx7 library "Sentry" "Next.js"` para instrumentação de observabilidade.
 
+## Implementado em 2026-10-01 — escopo parcial (gate de Fase 0), ver antes de mexer de novo
+- `.github/workflows/ci.yml`: roda em todo push/PR para `master` — `pnpm/setup@v1` (substitui o par `pnpm/action-setup` + `actions/setup-node`; `version` omitido porque `package.json` já declara `packageManager: pnpm@12.3.4`, ≥ v11 exigido pela action) com `runtime: node@24` (mesma versão do Vercel e do ambiente local) → `pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run type-check` (script novo, `tsc --noEmit`) → `pnpm run build`.
+- Confirmado que `pnpm run build` passa **sem nenhuma env var do Supabase definida** (nada no código hoje chama os clients em build-time/SSG) — por isso o workflow não declara `secrets.*` ainda. Quando alguma página passar a buscar dados do Supabase em build/SSG, adicionar os secrets correspondentes no repositório GitHub (Settings → Secrets) e injetá-los no step de build.
+- **Fora do escopo desta entrega** (itens do checklist abaixo que pertencem a fases futuras, não ao gate mínimo de Fase 0): testes unitários/RLS no CI (ainda não existem testes — `supabase/tests/` é só criado a partir da Fase 1, skill 02/03), Sentry, rotina de backup, tag semântica por fase. Não marcar o checklist completo por causa disso — é sinalizado aqui para não ser confundido com omissão.
+- Branch protection exigindo o check `ci` do GitHub Actions antes de merge (passo "bloqueia o merge" dos Passos abaixo) **ainda não foi ativado** — é uma mudança de configuração do repositório (não um arquivo versionado), pendente de confirmação explícita do dono do projeto antes de ligar.
+
 ## Passos
 1. GitHub Actions: lint → type-check → testes unitários → testes de RLS → build. Qualquer falha bloqueia o merge.
 2. Deploy preview automático por PR na Vercel; promoção a produção só após homologação humana da fase.
