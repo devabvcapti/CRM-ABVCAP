@@ -19,7 +19,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <SidebarProvider>
       <AppSidebar
         locale={currentLocale}
-        navLabels={{ dashboard: t("navDashboard"), organizations: t("navOrganizations") }}
+        navLabels={{
+          dashboard: t("navDashboard"),
+          organizations: t("navOrganizations"),
+          contacts: t("navContacts"),
+        }}
         profileName={profile?.name ?? ""}
         logoutLabel={t("logout")}
       />
