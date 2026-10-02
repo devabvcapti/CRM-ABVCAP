@@ -33,7 +33,7 @@ export function OrganizationForm({
   onSaved,
 }: {
   organization?: Organization;
-  onSaved: () => void;
+  onSaved: (state: OrganizationFormState) => void;
 }) {
   const t = useTranslations("OrganizationsPage");
   const action = organization
@@ -42,7 +42,7 @@ export function OrganizationForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   useEffect(() => {
-    if (state.success) onSaved();
+    if (state.success) onSaved(state);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success]);
 

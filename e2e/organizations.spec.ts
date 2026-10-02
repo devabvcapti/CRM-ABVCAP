@@ -13,7 +13,6 @@ async function fillAndSubmitCreate(page: Page, name: string) {
   await dialog.locator("#tier").click();
   await page.getByRole("option", { name: "B", exact: true }).click();
   await dialog.getByRole("button", { name: "Criar" }).click();
-  return dialog;
 }
 
 test.describe("organizações", () => {
@@ -21,70 +20,99 @@ test.describe("organizações", () => {
     await loginAsQa(page);
   });
 
-  test("criar, editar e excluir uma organização", async ({ page }) => {
+  test("criar navega para o detalhe; editar e excluir a partir de lá", async ({ page }) => {
     const name = `E2E Org ${Date.now()}`;
     const renamedTo = `${name} (editada)`;
 
     try {
       await page.goto(LIST_PATH);
 
-      const createDialog = await fillAndSubmitCreate(page, name);
-      await expect(createDialog).toBeHidden();
-      await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+      // Criar: ao contrário do fluxo antigo (Lista + painel genérico), o
+      // sucesso navega direto para a página de detalhe — é lá que ficam
+      // contatos vinculados, timeline de interações e as ações de
+      // editar/excluir (mesmo padrão de Contatos, ver contacts.spec.ts).
+      await fillAndSubmitCreate(page, name);
 
-      // Editar
-      const row = page.getByRole("row", { name });
-      await row.getByRole("button", { name: "Editar" }).click();
+      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      await expect(page.getByRole("heading", { name })).toBeVisible();
+      await expect(page.getByText("Fundo de Private Equity")).toBeVisible();
+
+      // Editar, a partir do detalhe.
+      await page.getByRole("button", { name: "Editar" }).click();
       const editDialog = page.getByRole("dialog", { name: "Editar organização" });
-      // espera o Sheet abrir com os dados originais antes de digitar — editar
-      // às pressas durante a transição de abertura foi a causa real de um
-      // flake aqui (o input ainda mostrava o nome antigo na falha).
       await expect(editDialog.locator("#name")).toHaveValue(name);
       await editDialog.locator("#name").fill(renamedTo);
       await editDialog.getByRole("button", { name: "Salvar" }).click();
       await expect(editDialog).toBeHidden();
+      await expect(page.getByRole("heading", { name: renamedTo })).toBeVisible();
 
-      await expect(page.getByRole("cell", { name: renamedTo, exact: true })).toBeVisible();
-
-      // Excluir
+      // Excluir: volta para a lista, e a organização não aparece mais lá.
       page.once("dialog", (dialog) => dialog.accept());
-      await page
-        .getByRole("row", { name: renamedTo })
-        .getByRole("button", { name: "Excluir" })
-        .click();
-
+      await page.getByRole("button", { name: "Excluir" }).click();
+      await expect(page).toHaveURL(/\/organizations$/);
       await expect(page.getByRole("cell", { name: renamedTo, exact: true })).toHaveCount(0);
     } finally {
-      // Limpeza best-effort mesmo se a asserção acima falhar no meio do
-      // caminho — nunca deixar "E2E Org ..." residual no banco de produção
-      // (é o único projeto Supabase do time, não um staging dedicado).
       await deleteRowIfExists(page, LIST_PATH, renamedTo);
       await deleteRowIfExists(page, LIST_PATH, name);
     }
   });
 
-  test("criar duas organizações seguidas fecha o Sheet nas duas vezes", async ({ page }) => {
-    // Regressão: a primeira versão do fix de remount usava
-    // key={editing?.id ?? "create"} — toda criação tem editing=undefined,
-    // então duas criações seguidas caíam na MESMA key, o form não remontava,
-    // e o useActionState ficava preso em success=true (o Sheet só fechava na
-    // primeira vez). Achado em code review, antes de virar bug em produção.
-    const nameA = `E2E Org A ${Date.now()}`;
-    const nameB = `E2E Org B ${Date.now()}`;
+  test("busca por nome filtra a lista", async ({ page }) => {
+    const nameA = `E2E Org Search A ${Date.now()}`;
+    const nameB = `E2E Org Search B ${Date.now()}`;
 
     try {
+      for (const name of [nameA, nameB]) {
+        await page.goto(LIST_PATH);
+        await fillAndSubmitCreate(page, name);
+        await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      }
+
       await page.goto(LIST_PATH);
+      await page.getByPlaceholder("Buscar por nome…").fill("Search A");
 
-      const firstDialog = await fillAndSubmitCreate(page, nameA);
-      await expect(firstDialog).toBeHidden();
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
-
-      const secondDialog = await fillAndSubmitCreate(page, nameB);
-      await expect(secondDialog).toBeHidden();
-      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
+    }
+  });
+
+  test("editar duas vezes seguidas a partir do detalhe fecha o Sheet nas duas vezes", async ({
+    page,
+  }) => {
+    // Regressão equivalente à de Contatos (ver skill 08-testing-quality.md):
+    // reabrir o Sheet de edição sem remontar o form via nonce deixa o
+    // useActionState preso em success=true a partir da segunda edição.
+    const name = `E2E Org Edit Twice ${Date.now()}`;
+    const renamedOnce = `${name} (v2)`;
+    const renamedTwice = `${name} (v3)`;
+
+    try {
+      await page.goto(LIST_PATH);
+      await fillAndSubmitCreate(page, name);
+      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+
+      await page.getByRole("button", { name: "Editar" }).click();
+      const firstEditDialog = page.getByRole("dialog", { name: "Editar organização" });
+      await expect(firstEditDialog.locator("#name")).toHaveValue(name);
+      await firstEditDialog.locator("#name").fill(renamedOnce);
+      await firstEditDialog.getByRole("button", { name: "Salvar" }).click();
+      await expect(firstEditDialog).toBeHidden();
+      await expect(page.getByRole("heading", { name: renamedOnce })).toBeVisible();
+
+      await page.getByRole("button", { name: "Editar" }).click();
+      const secondEditDialog = page.getByRole("dialog", { name: "Editar organização" });
+      await expect(secondEditDialog.locator("#name")).toHaveValue(renamedOnce);
+      await secondEditDialog.locator("#name").fill(renamedTwice);
+      await secondEditDialog.getByRole("button", { name: "Salvar" }).click();
+      await expect(secondEditDialog).toBeHidden();
+      await expect(page.getByRole("heading", { name: renamedTwice })).toBeVisible();
+    } finally {
+      await deleteRowIfExists(page, LIST_PATH, renamedTwice);
+      await deleteRowIfExists(page, LIST_PATH, renamedOnce);
+      await deleteRowIfExists(page, LIST_PATH, name);
     }
   });
 });

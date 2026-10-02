@@ -12,40 +12,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  addOrganizationLink,
-  endOrganizationLink,
-  type OrganizationLinkState,
-} from "./actions";
+import { addContactLink, endContactLink, type ContactLinkState } from "./actions";
 
-export type OrganizationLinkRow = {
+export type ContactLinkRow = {
   id: string;
-  org_id: string;
-  org_name: string;
+  contact_id: string;
+  contact_name: string;
   role: string;
   start_date: string;
   end_date: string | null;
 };
 
-const initialState: OrganizationLinkState = { error: null };
+const initialState: ContactLinkState = { error: null };
 
-// Form isolado num componente próprio, remontado via `key` do pai a cada
-// submissão bem-sucedida — mesmo bug documentado em skill 08 (useActionState
-// preso em success=true entre duas submissões seguidas) se reproduziria aqui
-// também, e um `form.reset()` sozinho não limpa o Select da Base UI (não
-// escuta o evento nativo "reset", mantém o valor interno selecionado).
+// Mesma relação organization_contacts de contacts/organization-links.tsx, só
+// que visto do lado da organização (vincula um contato, não uma organização)
+// — por isso não compartilha o componente, os campos do form são diferentes
+// (aqui seleciona-se um contato).
 function AddLinkForm({
-  contactId,
-  organizations,
+  orgId,
+  contacts,
   onAdded,
 }: {
-  contactId: string;
-  organizations: { id: string; name: string }[];
+  orgId: string;
+  contacts: { id: string; name: string }[];
   onAdded: () => void;
 }) {
-  const t = useTranslations("ContactsPage");
+  const t = useTranslations("OrganizationsPage");
   const [state, formAction, isPending] = useActionState(
-    addOrganizationLink.bind(null, contactId),
+    addContactLink.bind(null, orgId),
     initialState,
   );
 
@@ -55,8 +50,8 @@ function AddLinkForm({
   }, [state.success]);
 
   const errorMessage =
-    state.error === "required_org"
-      ? t("linkErrorRequiredOrg")
+    state.error === "required_contact"
+      ? t("linkErrorRequiredContact")
       : state.error === "required_role"
         ? t("linkErrorRequiredRole")
         : state.error === "required_date"
@@ -69,24 +64,24 @@ function AddLinkForm({
     <form action={formAction} className="flex flex-col gap-2">
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="org_id">{t("linkFieldOrg")}</FieldLabel>
-          <Select name="org_id" required>
-            <SelectTrigger id="org_id" className="w-full">
+          <FieldLabel htmlFor="contact_id">{t("linkFieldContact")}</FieldLabel>
+          <Select name="contact_id" required>
+            <SelectTrigger id="contact_id" className="w-full">
               {/* Select.Value da Base UI mostra o valor bruto (o uuid), não o
                   rótulo do SelectItem — precisa de children função (ver
                   ai-context/skills/02-data-modeling.md). */}
               <SelectValue>
                 {(value: string | null) =>
                   value
-                    ? (organizations.find((organization) => organization.id === value)?.name ?? value)
+                    ? (contacts.find((contact) => contact.id === value)?.name ?? value)
                     : t("selectPlaceholder")
                 }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {organizations.map((organization) => (
-                <SelectItem key={organization.id} value={organization.id}>
-                  {organization.name}
+              {contacts.map((contact) => (
+                <SelectItem key={contact.id} value={contact.id}>
+                  {contact.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -114,16 +109,16 @@ function AddLinkForm({
   );
 }
 
-export function OrganizationLinks({
-  contactId,
+export function ContactLinks({
+  orgId,
   links,
-  organizations,
+  contacts,
 }: {
-  contactId: string;
-  links: OrganizationLinkRow[];
-  organizations: { id: string; name: string }[];
+  orgId: string;
+  links: ContactLinkRow[];
+  contacts: { id: string; name: string }[];
 }) {
-  const t = useTranslations("ContactsPage");
+  const t = useTranslations("OrganizationsPage");
   const [isEnding, startEndTransition] = useTransition();
   const [addFormKey, setAddFormKey] = useState(0);
 
@@ -141,7 +136,7 @@ export function OrganizationLinks({
               className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
             >
               <div className="flex flex-col">
-                <span className="font-medium">{link.org_name}</span>
+                <span className="font-medium">{link.contact_name}</span>
                 <span className="text-muted-foreground">
                   {link.role} · {link.start_date} – {link.end_date ?? t("linkOngoing")}
                 </span>
@@ -152,9 +147,7 @@ export function OrganizationLinks({
                   variant="outline"
                   size="sm"
                   disabled={isEnding}
-                  onClick={() =>
-                    startEndTransition(() => endOrganizationLink(link.id))
-                  }
+                  onClick={() => startEndTransition(() => endContactLink(link.id))}
                 >
                   {t("linkEnd")}
                 </Button>
@@ -166,8 +159,8 @@ export function OrganizationLinks({
 
       <AddLinkForm
         key={addFormKey}
-        contactId={contactId}
-        organizations={organizations}
+        orgId={orgId}
+        contacts={contacts}
         onAdded={() => setAddFormKey((key) => key + 1)}
       />
     </div>

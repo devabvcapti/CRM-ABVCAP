@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { OrganizationLinks, type OrganizationLinkRow } from "../organization-links";
-import { InteractionsTimeline, type InteractionRow } from "../interactions-timeline";
+import { InteractionsTimeline, type InteractionRow } from "@/components/shared/interactions-timeline";
 import { ContactEditDelete } from "./contact-edit-delete";
 
 function initials(name: string) {
@@ -89,7 +89,11 @@ export default async function ContactDetailPage({
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1">
-          <InteractionsTimeline contactId={id} interactions={interactions} />
+          <InteractionsTimeline
+            participantType="contact"
+            participantId={id}
+            interactions={interactions}
+          />
         </div>
         <div className="flex w-full flex-col gap-6 lg:w-80">
           <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
