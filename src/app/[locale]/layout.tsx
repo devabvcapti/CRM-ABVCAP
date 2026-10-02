@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { Montserrat, Geist_Mono } from "next/font/google";
+import { locale } from "next/root-params";
+import { NextIntlClientProvider } from "next-intl";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import "./globals.css";
+import { routing } from "@/i18n/routing";
+import "../globals.css";
 
 // Fonte oficial da marca ABVCAP para mídia digital (guia de identidade visual
 // autoriza Montserrat/Arial como substituto de Museo/Museo Sans na web).
@@ -23,19 +26,25 @@ export const metadata: Metadata = {
   description: "CRM de inteligência de relacionamento institucional da ABVCAP.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
+export default async function RootLayout({ children }: LayoutProps<"/[locale]">) {
   return (
     <html
-      lang="pt-BR"
+      lang={await locale()}
       className={`${montserrat.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <TooltipProvider>
-            <Toaster>{children}</Toaster>
-          </TooltipProvider>
-        </ThemeProvider>
+        <NextIntlClientProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <TooltipProvider>
+              <Toaster>{children}</Toaster>
+            </TooltipProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );
