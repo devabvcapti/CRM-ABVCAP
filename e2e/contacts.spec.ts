@@ -494,13 +494,16 @@ test.describe("contatos", () => {
       await page.keyboard.press("Escape");
       await expect(page.getByRole("button", { name: "Adicionar tag" })).toBeVisible();
 
-      // --- Contato B: digita o MESMO nome com espaços extras e usa a opção
-      // "criar" — precisa anexar a tag EXISTENTE (mesmo id), não criar uma
-      // segunda tag quase-igual no catálogo.
+      // --- Contato B: digita o MESMO nome com espaços extras — o match
+      // exato (trimmed) com a tag já existente faz o picker surgir com a
+      // opção REGULAR (rótulo = `tagName` puro, sem prefixo "Criar tag:"),
+      // nunca a opção de criar (que corretamente deixa de aparecer quando já
+      // existe uma tag com esse nome exato) — precisa anexar a tag EXISTENTE
+      // (mesmo id), não criar uma segunda tag quase-igual no catálogo.
       await page.goto(urlB);
       await page.getByRole("button", { name: "Adicionar tag" }).click();
       await page.getByPlaceholder("Buscar ou criar tag…").fill(`  ${tagName}  `);
-      await page.getByRole("option", { name: `Criar tag: "${tagName}"` }).click();
+      await page.getByRole("option", { name: tagName }).click();
       await expect(
         page.getByRole("button", { name: `Remover tag ${tagName}` }),
       ).toBeVisible();
