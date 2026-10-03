@@ -185,7 +185,14 @@ test.describe("contatos", () => {
       await page.getByRole("option", { name: orgName }).click();
       await page.locator("#role").fill("Conselheiro");
       await page.getByRole("button", { name: "Vincular" }).click();
-      await expect(page.getByText(orgName)).toBeVisible();
+      // getByText(orgName) sozinho bate em DOIS elementos depois do vínculo
+      // criado (o valor ainda mostrado no trigger do Select #org_id + a
+      // linha nova na lista de vínculos) — strict-mode violation do
+      // Playwright. Escopar pro listitem, mesmo padrão de
+      // organization-links.spec.ts.
+      const linkRowA = page.getByRole("listitem").filter({ hasText: orgName });
+      await expect(linkRowA).toContainText("Conselheiro");
+      await expect(linkRowA).toContainText("atual");
 
       // nameB: mesmo Cargo=tagValue, SEM nenhum vínculo institucional — bate
       // só o critério de Cargo. Review Focus do brief (Step 3): prova que o
@@ -213,7 +220,11 @@ test.describe("contatos", () => {
       await page.getByRole("option", { name: orgName }).click();
       await page.locator("#role").fill("Conselheiro");
       await page.getByRole("button", { name: "Vincular" }).click();
-      await expect(page.getByText(orgName)).toBeVisible();
+      // Mesma ambiguidade de locator do vínculo de nameA acima — escopar
+      // pro listitem em vez do getByText(orgName) solto.
+      const linkRowC = page.getByRole("listitem").filter({ hasText: orgName });
+      await expect(linkRowC).toContainText("Conselheiro");
+      await expect(linkRowC).toContainText("atual");
 
       await page.goto(LIST_PATH);
       const searchInput = page.getByPlaceholder("Buscar por nome…");
