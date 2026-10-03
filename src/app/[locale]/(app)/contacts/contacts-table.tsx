@@ -45,8 +45,16 @@ export function ContactsTable({
 
   // Filtro client-side sobre a lista já carregada — não é busca full-text no
   // banco (isso fica para quando houver volume real de contatos que justifique).
-  const filteredContacts = contacts.filter((contact) =>
-    contact.full_name.toLowerCase().includes(search.trim().toLowerCase()),
+  // Memoizado: EntityDataGrid reseta a paginação para a página 1 sempre que a
+  // referência de `data` muda, e sem useMemo um re-render do pai (ex.: abrir
+  // o Sheet de "Novo contato") recriava o array a cada vez, jogando o usuário
+  // de volta à página 1 mesmo sem a busca ter mudado.
+  const filteredContacts = useMemo(
+    () =>
+      contacts.filter((contact) =>
+        contact.full_name.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [contacts, search],
   );
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Contact>[]>(

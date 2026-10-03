@@ -37,8 +37,16 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
   // Filtro client-side sobre a lista já carregada — não é busca full-text no
   // banco (isso fica para quando houver volume real de organizações que
   // justifique).
-  const filteredOrganizations = organizations.filter((organization) =>
-    organization.name.toLowerCase().includes(search.trim().toLowerCase()),
+  // Memoizado: EntityDataGrid reseta a paginação para a página 1 sempre que a
+  // referência de `data` muda, e sem useMemo um re-render do pai (ex.: abrir
+  // o Sheet de "Nova organização") recriava o array a cada vez, jogando o
+  // usuário de volta à página 1 mesmo sem a busca ter mudado.
+  const filteredOrganizations = useMemo(
+    () =>
+      organizations.filter((organization) =>
+        organization.name.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [organizations, search],
   );
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Organization>[]>(
