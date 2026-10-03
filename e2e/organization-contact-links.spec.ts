@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, forceClick } from "./helpers";
+import { loginAsQa, deleteRowIfExists, forceClick, filterList } from "./helpers";
 
 const ORGANIZATIONS_PATH = "/pt-BR/organizations";
 const CONTACTS_PATH = "/pt-BR/contacts";
@@ -41,6 +41,11 @@ test.describe("vínculo organização↔contato e timeline de interações", () 
       // relação organization_contacts de organization-links.spec.ts, vista
       // do outro lado (seleciona um contato, não uma organização).
       await page.goto(ORGANIZATIONS_PATH);
+      // Filtra antes de localizar o link — a lista pagina client-side
+      // (EntityDataGrid, pageSize 10, ordenada por nome), então sem o filtro
+      // esta organização de teste pode cair numa página 2+ e o lookup abaixo
+      // trava esperando um link que nunca aparece na página 1.
+      await filterList(page, orgName);
       // Clica no link de dentro da célula, não na célula inteira — desde a
       // migração de Organizações para EntityDataGrid (table-fixed), a <td>
       // fica mais larga que o <Link> que ela contém, e um .click() na célula

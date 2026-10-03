@@ -23,6 +23,16 @@ export async function forceClick(locator: ReturnType<Page["getByRole"]>) {
   await locator.evaluate((el) => (el as HTMLElement).click());
 }
 
+// Filtra a lista (Contatos ou Organizações, mesmo placeholder nas duas) pelo
+// nome antes de qualquer lookup de linha/célula/link por nome — a lista
+// pagina client-side (EntityDataGrid, pageSize 10, ordenada por nome), então
+// sem o filtro um lookup na lista SEM filtro pode simplesmente não encontrar
+// a linha se ela caiu numa página 2+ (silenciosamente, sem falhar o teste de
+// um jeito óbvio). Ver ai-context/skills/08-testing-quality.md.
+export async function filterList(page: Page, name: string) {
+  await page.getByPlaceholder("Buscar por nome…").fill(name);
+}
+
 // Limpeza best-effort para dados criados por um teste, independente dele ter
 // passado ou falhado no meio do ciclo criar→editar→excluir (o nome pode estar
 // no estado original OU renomeado quando a limpeza roda). Nunca falha o teste
@@ -32,6 +42,7 @@ export async function forceClick(locator: ReturnType<Page["getByRole"]>) {
 export async function deleteRowIfExists(page: Page, listPath: string, name: string) {
   try {
     await page.goto(listPath);
+    await filterList(page, name);
     const row = page.getByRole("row", { name });
     if ((await row.count()) === 0) return;
 

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists } from "./helpers";
+import { loginAsQa, deleteRowIfExists, filterList } from "./helpers";
 
 const LIST_PATH = "/pt-BR/organizations";
 
@@ -50,6 +50,10 @@ test.describe("organizações", () => {
       page.once("dialog", (dialog) => dialog.accept());
       await page.getByRole("button", { name: "Excluir" }).click();
       await expect(page).toHaveURL(/\/organizations$/);
+      // Filtra antes de checar a ausência — sem isso, a lista paginada
+      // (EntityDataGrid, pageSize 10) pode só não ter a linha na página 1 por
+      // volume de dados, mascarando uma falha real de exclusão como sucesso.
+      await filterList(page, renamedTo);
       await expect(page.getByRole("cell", { name: renamedTo, exact: true })).toHaveCount(0);
     } finally {
       await deleteRowIfExists(page, LIST_PATH, renamedTo);
