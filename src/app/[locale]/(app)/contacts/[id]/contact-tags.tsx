@@ -44,30 +44,38 @@ function TagAddPicker({
   const [query, setQuery] = useState("");
 
   const trimmedQuery = query.trim();
-  // Filtro usa o texto EXATO digitado (sem trim) contra o nome das opções —
-  // de propósito: um nome com espaço a mais não bate com nenhuma opção
-  // existente (Review Focus "texto sem match"), então mostra a opção
-  // "criar", mas o nome que de fato vai pro addTagToContact (tanto no rótulo
-  // quanto na chamada) já é o `trimmedQuery` — o `.trim()` de actions.ts é a
-  // segunda camada da mesma garantia, não a única.
-  const matches = query
-    ? options.filter((option) => option.name.toLowerCase().includes(query.toLowerCase()))
+  const normalizedQuery = trimmedQuery.toLowerCase();
+
+  // Fix de follow-up (achado do controller ao rodar a suíte E2E completa
+  // após a primeira rodada de fixes): tanto a lista de matches por SUBSTRING
+  // quanto os dois checks de match EXATO abaixo usam `trimmedQuery`/
+  // `normalizedQuery` (nunca o `query` cru) — espaços nas pontas nunca podem
+  // fazer um nome que de fato bate (substring OU exato) deixar de aparecer
+  // na lista. Antes, `matches` filtrava com o `query` cru: digitar o nome de
+  // uma tag existente com espaços extras nas pontas (Review Focus "não
+  // duplica por nome com espaços") fazia `"nome".includes("  nome  ")` ser
+  // sempre `false` (a string com padding é mais longa que o nome real, nunca
+  // pode ser substring dele) — `matches` ficava vazio e, como o check de
+  // match exato (abaixo) corretamente já suprimia "Criar tag" nesse caso, o
+  // picker não sobrava com NENHUMA opção clicável: nem a tag existente, nem
+  // "criar".
+  const matches = trimmedQuery
+    ? options.filter((option) => option.name.toLowerCase().includes(normalizedQuery))
     : options;
 
-  // Fix do code review final (whole-branch): a opção "Criar tag" precisa
-  // aparecer sempre que o texto digitado (trimmed) não é vazio E não é uma
-  // cópia EXATA (case-insensitive) do nome de alguma tag já disponível para
-  // anexar OU já anexada a este contato — independente de quantos matches
-  // por SUBSTRING também aparecem na lista (a opção de criar é aditiva,
-  // nunca exclusiva com os matches). Antes, "Criar tag" só aparecia quando
-  // `matches` estava vazio, então digitar "Conselheiro" com uma tag
-  // "Conselheiro Fiscal" já existente no catálogo escondia a opção de criar
-  // "Conselheiro" (não há outra forma de criar tag no app). E, sem o check
-  // contra `attachedTagNames`, redigitar o nome EXATO de uma tag já anexada
-  // a este contato (que `options` já exclui) ainda oferecia "criar" — a
-  // tentativa batia direto na constraint `entity_tags_unique` e virava um
-  // alerta genérico em vez de simplesmente não oferecer a opção.
-  const normalizedQuery = trimmedQuery.toLowerCase();
+  // A opção "Criar tag" precisa aparecer sempre que o texto digitado
+  // (trimmed) não é vazio E não é uma cópia EXATA (case-insensitive) do nome
+  // de alguma tag já disponível para anexar OU já anexada a este contato —
+  // independente de quantos matches por SUBSTRING também aparecem na lista
+  // (a opção de criar é aditiva, nunca exclusiva com os matches). Antes,
+  // "Criar tag" só aparecia quando `matches` estava vazio, então digitar
+  // "Conselheiro" com uma tag "Conselheiro Fiscal" já existente no catálogo
+  // escondia a opção de criar "Conselheiro" (não há outra forma de criar tag
+  // no app). E, sem o check contra `attachedTagNames`, redigitar o nome
+  // EXATO de uma tag já anexada a este contato (que `options` já exclui)
+  // ainda oferecia "criar" — a tentativa batia direto na constraint
+  // `entity_tags_unique` e virava um alerta genérico em vez de simplesmente
+  // não oferecer a opção.
   const hasExactAvailableOption = options.some(
     (option) => option.name.toLowerCase() === normalizedQuery,
   );
