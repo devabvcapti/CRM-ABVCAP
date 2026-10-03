@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 // Conta de teste dedicada (papel analista) — nunca a conta real de Admin.
 // Credenciais vêm de env vars (secrets do GitHub Actions em CI, exportadas
@@ -31,6 +31,52 @@ export async function forceClick(locator: ReturnType<Page["getByRole"]>) {
 // um jeito óbvio). Ver ai-context/skills/08-testing-quality.md.
 export async function filterList(page: Page, name: string) {
   await page.getByPlaceholder("Buscar por nome…").fill(name);
+}
+
+// Cadastro rápido de Contato (ContactCreateForm, Task 1 — Cargo virou campo
+// próprio do Contato): 5 campos, todos sem `required` HTML nativo (ver
+// contact-create-form.tsx — um `required` nativo bloquearia o submit antes
+// da Server Action rodar, escondendo a FieldError traduzida atrás de um
+// tooltip do browser). Preenche só os campos informados — quem chama decide
+// o que preencher (o teste de validação de campo obrigatório vazio, por
+// exemplo, propositalmente deixa um de fora) — e retorna o locator do dialog
+// sem clicar em "Criar", pra quem chama poder tanto confirmar sucesso quanto
+// testar um erro de validação. Promovido de `contacts.spec.ts` pra cá
+// (estava duplicado ali e precisava virar helper comum): `organization-
+// contact-links.spec.ts` e `organization-links.spec.ts` também criam um
+// "contato de apoio" via este mesmo form, e Empresa é um campo obrigatório
+// agora — não dá mais pra criar um contato preenchendo só `#full_name`.
+export async function fillQuickCreateForm(
+  page: Page,
+  fields: { name?: string; title?: string; email?: string; phone?: string; orgName?: string },
+) {
+  await page.getByRole("button", { name: "Novo contato" }).click();
+  const dialog = page.getByRole("dialog", { name: "Novo contato" });
+  if (fields.name !== undefined) await dialog.locator("#full_name").fill(fields.name);
+  if (fields.title !== undefined) await dialog.locator("#title").fill(fields.title);
+  if (fields.email !== undefined) await dialog.locator("#email").fill(fields.email);
+  if (fields.phone !== undefined) await dialog.locator("#phone").fill(fields.phone);
+  if (fields.orgName !== undefined) {
+    await dialog.locator("#org_id").click();
+    await page.getByRole("option", { name: fields.orgName }).click();
+  }
+  return dialog;
+}
+
+// Variante "feliz": preenche os 5 campos e já clica "Criar", esperando a
+// navegação pro detalhe do contato novo (mesmo padrão de sucesso de
+// Organizações/Contatos: criar sempre navega pro detalhe). `orgName`
+// precisa ser de uma organização que já existe (o <Select> de Empresa não
+// cria organização nova inline — spec "Fora de escopo").
+export async function createContactViaQuickForm(
+  page: Page,
+  fields: { name: string; title: string; email: string; phone: string; orgName: string },
+) {
+  await page.goto("/pt-BR/contacts");
+  const dialog = await fillQuickCreateForm(page, fields);
+  await dialog.getByRole("button", { name: "Criar" }).click();
+  await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+  return page.url();
 }
 
 // Limpeza best-effort para dados criados por um teste, independente dele ter

@@ -1,5 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, filterList } from "./helpers";
+import {
+  loginAsQa,
+  deleteRowIfExists,
+  filterList,
+  fillQuickCreateForm,
+  createContactViaQuickForm,
+} from "./helpers";
 
 const LIST_PATH = "/pt-BR/contacts";
 const ORG_LIST_PATH = "/pt-BR/organizations";
@@ -20,39 +26,11 @@ async function deleteSavedFilterIfExists(page: Page, name: string) {
   }
 }
 
-// Cadastro rápido (ContactCreateForm, Task 1): 5 campos obrigatórios, sempre
-// os mesmos passos — extraído aqui pra não repetir em cada teste. Navega pra
-// LIST_PATH, abre o Sheet, preenche e clica "Criar", mas NÃO espera a
-// navegação pro detalhe (quem chama decide o que checar depois, já que o
-// teste de validação (Step 13, campo obrigatório vazio) propositalmente não
-// navega).
-async function fillQuickCreateForm(
-  page: Page,
-  fields: { name?: string; title?: string; email?: string; phone?: string; orgName?: string },
-) {
-  await page.getByRole("button", { name: "Novo contato" }).click();
-  const dialog = page.getByRole("dialog", { name: "Novo contato" });
-  if (fields.name !== undefined) await dialog.locator("#full_name").fill(fields.name);
-  if (fields.title !== undefined) await dialog.locator("#title").fill(fields.title);
-  if (fields.email !== undefined) await dialog.locator("#email").fill(fields.email);
-  if (fields.phone !== undefined) await dialog.locator("#phone").fill(fields.phone);
-  if (fields.orgName !== undefined) {
-    await dialog.locator("#org_id").click();
-    await page.getByRole("option", { name: fields.orgName }).click();
-  }
-  return dialog;
-}
-
-async function createContactViaQuickForm(
-  page: Page,
-  fields: { name: string; title: string; email: string; phone: string; orgName: string },
-) {
-  await page.goto(LIST_PATH);
-  const dialog = await fillQuickCreateForm(page, fields);
-  await dialog.getByRole("button", { name: "Criar" }).click();
-  await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
-  return page.url();
-}
+// `fillQuickCreateForm`/`createContactViaQuickForm` (cadastro rápido de
+// Contato, 5 campos — Task 1) moraram aqui antes; promovidas pra
+// `./helpers` porque `organization-contact-links.spec.ts` e `organization-
+// links.spec.ts` também precisam criar um "contato de apoio" e Empresa virou
+// campo obrigatório no cadastro rápido (ver helpers.ts).
 
 async function createOrg(page: Page, orgName: string) {
   await page.goto(ORG_LIST_PATH);

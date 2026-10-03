@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, forceClick } from "./helpers";
+import { loginAsQa, deleteRowIfExists, forceClick, createContactViaQuickForm } from "./helpers";
 
 const ORGANIZATIONS_PATH = "/pt-BR/organizations";
 const CONTACTS_PATH = "/pt-BR/contacts";
@@ -25,23 +25,38 @@ test.describe("vínculo contato↔organização", () => {
   test("vincular um contato a duas organizações seguidas e depois encerrar um vínculo", async ({
     page,
   }) => {
-    const orgNameA = `E2E LinkOrg A ${Date.now()}`;
-    const orgNameB = `E2E LinkOrg B ${Date.now()}`;
-    const contactName = `E2E LinkContact ${Date.now()}`;
+    const stamp = Date.now();
+    const orgNameA = `E2E LinkOrg A ${stamp}`;
+    const orgNameB = `E2E LinkOrg B ${stamp}`;
+    const contactName = `E2E LinkContact ${stamp}`;
+    // Organização só pra satisfazer o campo obrigatório de Empresa do
+    // cadastro rápido de Contato (Task 1) — nunca referenciada por nenhuma
+    // asserção deste teste. Precisa ser DIFERENTE de orgNameA/orgNameB: o
+    // teste vincula o contato de apoio a AMBAS explicitamente logo abaixo, e
+    // se o cadastro rápido já tivesse criado um vínculo automático com
+    // qualquer uma das duas, o vínculo manual subsequente criaria um
+    // SEGUNDO vínculo pro mesmo par (contato, organização) — linkRowA/
+    // linkRowB (filtro por nome de organização na lista de "Vínculos
+    // institucionais" do contato) bateriam em 2 elementos cada, strict mode
+    // violation no Playwright.
+    const supportOrgName = `E2E LinkOrg Apoio ${stamp}`;
 
     try {
       await createOrganization(page, orgNameA);
       await createOrganization(page, orgNameB);
+      await createOrganization(page, supportOrgName);
 
-      // Contato de apoio — criar já navega para a página de detalhe, onde
+      // Contato de apoio — cadastro rápido (Task 1: 5 campos obrigatórios,
+      // Empresa inclusa) — criar já navega para a página de detalhe, onde
       // vive a seção "Vínculos institucionais" (não fica mais dentro do
       // painel de editar).
-      await page.goto(CONTACTS_PATH);
-      await page.getByRole("button", { name: "Novo contato" }).click();
-      const contactCreateDialog = page.getByRole("dialog", { name: "Novo contato" });
-      await contactCreateDialog.locator("#full_name").fill(contactName);
-      await contactCreateDialog.getByRole("button", { name: "Criar" }).click();
-      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+      await createContactViaQuickForm(page, {
+        name: contactName,
+        title: "Analista",
+        email: "contato-linkcontact@example.com",
+        phone: "11999990000",
+        orgName: supportOrgName,
+      });
       await expect(page.getByRole("heading", { name: contactName })).toBeVisible();
 
       // Vincular a DUAS organizações seguidas, sem recarregar a página — é
@@ -84,6 +99,7 @@ test.describe("vínculo contato↔organização", () => {
       await deleteRowIfExists(page, CONTACTS_PATH, contactName);
       await deleteRowIfExists(page, ORGANIZATIONS_PATH, orgNameA);
       await deleteRowIfExists(page, ORGANIZATIONS_PATH, orgNameB);
+      await deleteRowIfExists(page, ORGANIZATIONS_PATH, supportOrgName);
     }
   });
 });
