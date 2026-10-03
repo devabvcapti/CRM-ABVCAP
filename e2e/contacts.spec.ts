@@ -30,8 +30,14 @@ test.describe("contatos", () => {
       await expect(page.getByText("Palestrante")).toBeVisible();
 
       // A tag "Palestrante" cadastrada na criação também aparece como badge
-      // na linha da lista, não só na página de detalhe.
+      // na linha da lista, não só na página de detalhe. Filtra pelo nome
+      // único do contato antes de checar a linha — a lista pagina
+      // client-side (EntityDataGrid, pageSize 10) e sem o filtro a linha
+      // poderia cair numa página 2+ se a conta QA compartilhada já tiver 10+
+      // contatos ordenando antes dele (mesmo cuidado do teste de ordenação
+      // logo abaixo).
       await page.goto(LIST_PATH);
+      await page.getByPlaceholder("Buscar por nome…").fill(name);
       await expect(
         page.getByRole("row", { name }).getByText("Palestrante"),
       ).toBeVisible();
