@@ -41,7 +41,11 @@ test.describe("vínculo organização↔contato e timeline de interações", () 
       // relação organization_contacts de organization-links.spec.ts, vista
       // do outro lado (seleciona um contato, não uma organização).
       await page.goto(ORGANIZATIONS_PATH);
-      await page.getByRole("cell", { name: orgName, exact: true }).click();
+      // Clica no link de dentro da célula, não na célula inteira — desde a
+      // migração de Organizações para EntityDataGrid (table-fixed), a <td>
+      // fica mais larga que o <Link> que ela contém, e um .click() na célula
+      // mira o centro da bounding box, que cai fora do link clicável.
+      await page.getByRole("link", { name: orgName, exact: true }).click();
       await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
 
       await page.locator("#contact_id").click();
