@@ -57,11 +57,20 @@ export default async function ContactsPage() {
     .eq("entity_type", "contact")
     .order("name");
 
+  // Organizações existentes para o <Select> de Empresa do cadastro rápido
+  // (ContactCreateForm) — nunca autocomplete com criação inline (spec, "Fora
+  // de escopo").
+  const { data: organizations } = await supabase
+    .from("organizations")
+    .select("id, name")
+    .order("name", { ascending: true });
+
   return (
     <ContactsTable
       contacts={contacts ?? []}
       tagsByContact={tagsByContact}
       organizationByContact={organizationByContact}
+      organizations={organizations ?? []}
       // filter_state é Json no schema (genérico pra qualquer entidade) — o
       // formato real sempre bate com ContactFilterState pra entity_type
       // "contact", já que é o próprio saveFilter desta página que grava esse

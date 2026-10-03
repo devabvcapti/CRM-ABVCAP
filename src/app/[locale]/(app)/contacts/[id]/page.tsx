@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEntityOrNull } from "@/lib/supabase/fetch-entity-or-not-found";
 import { OrganizationLinks, type OrganizationLinkRow } from "../organization-links";
 import { InteractionsTimeline, type InteractionRow } from "@/components/shared/interactions-timeline";
 import { ContactEditDelete } from "./contact-edit-delete";
+import { ContactTags } from "./contact-tags";
 import type { Database } from "@/types/database";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
@@ -32,29 +32,39 @@ export default async function ContactDetailPage({
   const contact = await fetchEntityOrNull<Contact>(supabase, "contacts", id);
   if (!contact) notFound();
 
-  const [{ data: tagLinks }, { data: orgLinks }, { data: organizations }, { data: participantRows }] =
-    await Promise.all([
-      supabase
-        .from("entity_tags")
-        .select("tags(name)")
-        .eq("entity_type", "contact")
-        .eq("entity_id", id),
-      supabase
-        .from("organization_contacts")
-        .select("id, org_id, role, start_date, end_date, organizations(name)")
-        .eq("contact_id", id)
-        .order("start_date", { ascending: false }),
-      supabase.from("organizations").select("id, name").order("name", { ascending: true }),
-      supabase
-        .from("interaction_participants")
-        .select("interactions(id, type, occurred_at, summary, classification_level)")
-        .eq("participant_type", "contact")
-        .eq("participant_id", id),
-    ]);
+  const [
+    { data: tagLinks },
+    { data: allTags },
+    { data: orgLinks },
+    { data: organizations },
+    { data: participantRows },
+  ] = await Promise.all([
+    supabase
+      .from("entity_tags")
+      .select("id, tags(id, name)")
+      .eq("entity_type", "contact")
+      .eq("entity_id", id),
+    supabase.from("tags").select("id, name").order("name", { ascending: true }),
+    supabase
+      .from("organization_contacts")
+      .select("id, org_id, role, start_date, end_date, organizations(name)")
+      .eq("contact_id", id)
+      .order("start_date", { ascending: false }),
+    supabase.from("organizations").select("id, name").order("name", { ascending: true }),
+    supabase
+      .from("interaction_participants")
+      .select("interactions(id, type, occurred_at, summary, classification_level)")
+      .eq("participant_type", "contact")
+      .eq("participant_id", id),
+  ]);
 
   const tags = (tagLinks ?? [])
-    .map((link) => (link.tags as { name: string } | null)?.name)
-    .filter((name): name is string => Boolean(name));
+    .map((link) => {
+      const tag = link.tags as { id: string; name: string } | null;
+      if (!tag) return null;
+      return { entityTagId: link.id, tagId: tag.id, name: tag.name };
+    })
+    .filter((tag): tag is { entityTagId: string; tagId: string; name: string } => Boolean(tag));
 
   const organizationLinks: OrganizationLinkRow[] = (orgLinks ?? []).map((link) => ({
     id: link.id,
@@ -79,16 +89,10 @@ export default async function ContactDetailPage({
           </Avatar>
           <div>
             <h1 className="text-xl font-semibold text-foreground">{contact.full_name}</h1>
-            <div className="flex flex-wrap gap-1">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="outline">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+            {contact.title && <p className="text-sm text-muted-foreground">{contact.title}</p>}
           </div>
         </div>
-        <ContactEditDelete contact={contact} contactTags={tags} />
+        <ContactEditDelete contact={contact} />
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -113,21 +117,6 @@ export default async function ContactDetailPage({
             ) : (
               <span className="text-muted-foreground">—</span>
             )}
-            {contact.linkedin_url && (
-              <>
-                <h3 className="mt-2 mb-1 text-sm font-medium text-foreground">
-                  {t("fieldLinkedin")}
-                </h3>
-                <a
-                  href={contact.linkedin_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {contact.linkedin_url}
-                </a>
-              </>
-            )}
             {contact.notes && (
               <>
                 <h3 className="mt-2 mb-1 text-sm font-medium text-foreground">{t("fieldNotes")}</h3>
@@ -135,6 +124,8 @@ export default async function ContactDetailPage({
               </>
             )}
           </div>
+
+          <ContactTags contactId={id} tags={tags} allTags={allTags ?? []} />
 
           <OrganizationLinks contactId={id} links={organizationLinks} organizations={organizations ?? []} />
         </div>

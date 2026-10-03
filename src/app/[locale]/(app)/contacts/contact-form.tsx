@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { Database } from "@/types/database";
-import { createContact, updateContact, type ContactFormState } from "./actions";
+import { updateContact, type ContactFormState } from "./actions";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
@@ -23,15 +23,13 @@ const initialState: ContactFormState = { error: null };
 
 export function ContactForm({
   contact,
-  contactTags,
   onSaved,
 }: {
-  contact?: Contact;
-  contactTags?: string[];
+  contact: Contact;
   onSaved: (state: ContactFormState) => void;
 }) {
   const t = useTranslations("ContactsPage");
-  const action = contact ? updateContact.bind(null, contact.id) : createContact;
+  const action = updateContact.bind(null, contact.id);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   useEffect(() => {
@@ -50,58 +48,39 @@ export function ContactForm({
     <SheetContent>
       <form action={formAction} className="flex h-full flex-col">
         <SheetHeader>
-          <SheetTitle>{contact ? t("formTitleEdit") : t("formTitleCreate")}</SheetTitle>
+          <SheetTitle>{t("formTitleEdit")}</SheetTitle>
           <SheetDescription>{t("formDescription")}</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4">
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="full_name">{t("fieldFullName")}</FieldLabel>
-              <Input id="full_name" name="full_name" defaultValue={contact?.full_name} required />
+              <Input id="full_name" name="full_name" defaultValue={contact.full_name} required />
             </Field>
             <Field>
-              <FieldLabel htmlFor="tags">{t("fieldTags")}</FieldLabel>
-              <Input id="tags" name="tags" defaultValue={contactTags?.join(", ")} />
-              <FieldDescription>{t("fieldTagsHint")}</FieldDescription>
+              <FieldLabel htmlFor="title">{t("fieldTitle")}</FieldLabel>
+              <Input id="title" name="title" defaultValue={contact.title ?? ""} />
             </Field>
             <Field>
               <FieldLabel htmlFor="emails">{t("fieldEmails")}</FieldLabel>
-              <Input id="emails" name="emails" defaultValue={contact?.emails?.join(", ")} />
+              <Input id="emails" name="emails" defaultValue={contact.emails?.join(", ")} />
               <FieldDescription>{t("fieldListHint")}</FieldDescription>
             </Field>
             <Field>
               <FieldLabel htmlFor="phones">{t("fieldPhones")}</FieldLabel>
-              <Input id="phones" name="phones" defaultValue={contact?.phones?.join(", ")} />
+              <Input id="phones" name="phones" defaultValue={contact.phones?.join(", ")} />
               <FieldDescription>{t("fieldListHint")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="languages">{t("fieldLanguages")}</FieldLabel>
-              <Input
-                id="languages"
-                name="languages"
-                defaultValue={contact?.languages?.join(", ")}
-              />
-              <FieldDescription>{t("fieldListHint")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="linkedin_url">{t("fieldLinkedin")}</FieldLabel>
-              <Input
-                id="linkedin_url"
-                name="linkedin_url"
-                type="url"
-                defaultValue={contact?.linkedin_url ?? ""}
-              />
             </Field>
             <Field>
               <FieldLabel htmlFor="notes">{t("fieldNotes")}</FieldLabel>
-              <Textarea id="notes" name="notes" defaultValue={contact?.notes ?? ""} rows={4} />
+              <Textarea id="notes" name="notes" defaultValue={contact.notes ?? ""} rows={4} />
             </Field>
             {errorMessage && <FieldError>{errorMessage}</FieldError>}
           </FieldGroup>
         </div>
         <SheetFooter>
           <Button type="submit" disabled={isPending}>
-            {isPending ? t("submitting") : contact ? t("submitEdit") : t("submitCreate")}
+            {isPending ? t("submitting") : t("submitEdit")}
           </Button>
           <SheetClose render={<Button type="button" variant="outline" />}>
             {t("cancel")}

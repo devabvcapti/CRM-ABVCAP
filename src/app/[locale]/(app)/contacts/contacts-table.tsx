@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +16,8 @@ import { EntityDataGrid } from "@/components/shared/entity-data-grid";
 import { SavedFiltersControl } from "@/components/shared/saved-filters-control";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
-import { ContactForm } from "./contact-form";
-import type { ContactFormState } from "./actions";
+import { ContactCreateForm } from "./contact-create-form";
+import type { ContactCreateFormState } from "./actions";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
@@ -49,11 +48,13 @@ export function ContactsTable({
   contacts,
   tagsByContact,
   organizationByContact,
+  organizations,
   savedFilters,
 }: {
   contacts: Contact[];
   tagsByContact: Record<string, string[]>;
   organizationByContact: Record<string, { id: string; name: string }>;
+  organizations: { id: string; name: string }[];
   savedFilters: { id: string; name: string; filter_state: ContactFilterState }[];
 }) {
   const t = useTranslations("ContactsPage");
@@ -141,18 +142,11 @@ export function ContactsTable({
         ),
       },
       {
-        id: "tags",
-        header: t("colTags"),
+        id: "title",
+        accessorKey: "title",
+        header: t("colTitle"),
         enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
-            {(tagsByContact[row.original.id] ?? []).map((tag) => (
-              <Badge key={tag} variant="outline">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        ),
+        cell: (info) => (info.getValue() as string | null) ?? "—",
       },
       {
         id: "email",
@@ -171,7 +165,7 @@ export function ContactsTable({
         cell: (info) => info.getValue() as string,
       },
     ],
-    [tagsByContact, t],
+    [t],
   );
 
   function openCreate() {
@@ -179,7 +173,7 @@ export function ContactsTable({
     setSheetOpen(true);
   }
 
-  function handleSaved(state: ContactFormState) {
+  function handleSaved(state: ContactCreateFormState) {
     setSheetOpen(false);
     // Criar sempre navega para o detalhe do novo contato — é lá que ficam
     // vínculos, timeline de interações, editar e excluir.
@@ -284,7 +278,7 @@ export function ContactsTable({
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <ContactForm key={formKey} onSaved={handleSaved} />
+        <ContactCreateForm key={formKey} organizations={organizations} onSaved={handleSaved} />
       </Sheet>
     </div>
   );
