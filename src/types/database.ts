@@ -78,11 +78,10 @@ export type Database = {
           emails: string[]
           full_name: string
           id: string
-          languages: string[]
-          linkedin_url: string | null
           notes: string | null
           organization_id: string
           phones: string[]
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -91,11 +90,10 @@ export type Database = {
           emails?: string[]
           full_name: string
           id?: string
-          languages?: string[]
-          linkedin_url?: string | null
           notes?: string | null
           organization_id?: string
           phones?: string[]
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -104,11 +102,10 @@ export type Database = {
           emails?: string[]
           full_name?: string
           id?: string
-          languages?: string[]
-          linkedin_url?: string | null
           notes?: string | null
           organization_id?: string
           phones?: string[]
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
