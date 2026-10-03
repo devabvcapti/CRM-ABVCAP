@@ -36,6 +36,17 @@ export type OrganizationFilterState = {
 // filter_state (lá, "sem filtro" é undefined, não essa string).
 const ALL_FILTER_VALUE = "__all__";
 
+// Mapeia o id da coluna (nem sempre igual ao nome do campo — "type" vs.
+// `org_type`) pro valor comparável — usado pela ordenação client-side do
+// shim de pagination/sorting (ver comentário no componente). Módulo, não
+// componente: referência estável, sem entrar em dependência de useMemo.
+const SORT_ACCESSORS: Record<string, (organization: Organization) => string> = {
+  name: (organization) => organization.name,
+  type: (organization) => organization.org_type,
+  tier: (organization) => organization.tier,
+  status: (organization) => organization.status,
+};
+
 function toPascalCase(value: string) {
   return value
     .split("_")
@@ -62,13 +73,18 @@ export function OrganizationsTable({
   const [tierFilter, setTierFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [sectorFilter, setSectorFilter] = useState<string | undefined>(undefined);
-  // Temporário (Task 1): `EntityDataGrid` virou controlado (ver
-  // docs/superpowers/specs/2026-10-03-server-side-list-pagination-design.md)
-  // e Organizações ainda não migrou pra busca/filtro/paginação no servidor
-  // (Task 2, mesma frente) — pagination/sorting que antes viviam DENTRO do
-  // grid agora precisam vir de algum lugar; aqui replicam exatamente o
-  // mesmo comportamento client-side de antes, só realocado um nível acima.
-  // Task 2 substitui isto por `useEntityListUrlState`.
+  // Temporário (Task 1): `EntityDataGrid` virou controlado — SEM modo dual
+  // (ver Global Constraint do plano) — e `manualPagination`/`manualSorting`
+  // agora são incondicionais pra todo consumidor. Isso significa que o
+  // TanStack não fatia nem ordena mais `data` sozinho: quem chama precisa
+  // entregar já fatiado/ordenado. Organizações ainda não migrou pra
+  // busca/filtro/paginação no servidor (Task 2, mesma frente), então
+  // `pagination`/`sorting` moram aqui como `useState` e a ordenação/corte
+  // client-side (`sortedOrganizations`/`paginatedOrganizations` abaixo)
+  // reimplementa à mão o que o TanStack fazia sozinho antes — mesmo
+  // comportamento de UX de antes, não mais "de graça" via row model
+  // automático. Task 2 substitui tudo isto por `useEntityListUrlState` +
+  // query no servidor.
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -103,10 +119,10 @@ export function OrganizationsTable({
   // comparam por igualdade (valor único por organização), Setor por
   // `.includes()` (array — uma organização pode ter vários setores
   // prioritários).
-  // Memoizado: EntityDataGrid reseta a paginação para a página 1 sempre que a
-  // referência de `data` muda, e sem useMemo um re-render do pai (ex.: abrir
-  // o Sheet de "Nova organização") recriava o array a cada vez, jogando o
-  // usuário de volta à página 1 mesmo sem a busca ter mudado.
+  // Memoizado: o efeito abaixo reseta a paginação pra página 1 sempre que a
+  // REFERÊNCIA deste array muda — sem useMemo aqui, um re-render do pai
+  // (ex.: abrir o Sheet de "Nova organização") recriava o array a cada vez,
+  // jogando o usuário de volta à página 1 mesmo sem a busca ter mudado.
   const filteredOrganizations = useMemo(
     () =>
       organizations.filter((organization) => {
@@ -119,6 +135,42 @@ export function OrganizationsTable({
       }),
     [organizations, search, orgTypeFilter, tierFilter, statusFilter, sectorFilter],
   );
+
+  // `EntityDataGrid` é `manualSorting`/`manualPagination` incondicional (ver
+  // comentário do `useState` de pagination/sorting acima) — então a ordenação
+  // e o corte de página que o TanStack fazia sozinho em modo não-manual
+  // precisam ser feitos aqui, à mão, antes de entregar `data`.
+  const sortedOrganizations = useMemo(() => {
+    const sortState = sorting[0];
+    const accessor = sortState && SORT_ACCESSORS[sortState.id];
+    if (!sortState || !accessor) return filteredOrganizations;
+    const sorted = [...filteredOrganizations].sort((a, b) =>
+      accessor(a).localeCompare(accessor(b)),
+    );
+    return sortState.desc ? sorted.reverse() : sorted;
+  }, [filteredOrganizations, sorting]);
+
+  const paginatedOrganizations = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize;
+    return sortedOrganizations.slice(start, start + pagination.pageSize);
+  }, [sortedOrganizations, pagination]);
+
+  // Mesmo comportamento de antes (ver comentário do `filteredOrganizations`
+  // acima): qualquer mudança no conjunto filtrado volta pra página 1 — sem
+  // isto, trocar um filtro enquanto numa página 2+ poderia deixar a grid
+  // numa página sem nenhuma linha (ou com linhas erradas), já que o reset
+  // automático que o TanStack fazia sozinho em modo não-manual não existe
+  // mais (`manualPagination: true`). Ajuste de estado durante o render
+  // (padrão recomendado pelo React pra "estado derivado de uma prop que
+  // mudou"), não um `useEffect` com `setState` síncrono — que dispararia
+  // re-renders em cascata.
+  const [syncedFilteredOrganizations, setSyncedFilteredOrganizations] = useState(filteredOrganizations);
+  if (filteredOrganizations !== syncedFilteredOrganizations) {
+    setSyncedFilteredOrganizations(filteredOrganizations);
+    if (pagination.pageIndex !== 0) {
+      setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+    }
+  }
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Organization>[]>(
     () => [
@@ -330,7 +382,7 @@ export function OrganizationsTable({
 
           <EntityDataGrid
             columns={columns}
-            data={filteredOrganizations}
+            data={paginatedOrganizations}
             getRowId={(organization) => organization.id}
             totalCount={filteredOrganizations.length}
             pagination={pagination}

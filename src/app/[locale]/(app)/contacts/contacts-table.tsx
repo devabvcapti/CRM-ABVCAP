@@ -106,29 +106,55 @@ export function ContactsTable({
   const [searchInput, setSearchInput] = useState(filterState.search ?? "");
   // "Latest ref" só pro callback do debounce (abaixo) ler o filterState mais
   // recente sem precisar reiniciar o timer a cada troca de tag/cargo/empresa
-  // — mutação sempre dentro de efeito, nunca durante o render (ver react-
-  // hooks/refs).
+  // — mutação sempre dentro de efeito, nunca durante o render, e nunca LIDO
+  // durante o render tampouco (ver react-hooks/refs — a regra proíbe os dois).
   const filterStateRef = useRef(filterState);
   useEffect(() => {
     filterStateRef.current = filterState;
   }, [filterState]);
 
-  // Sincroniza o campo local quando filterState.search muda por fora (filtro
-  // salvo aplicado, navegação back/forward) — ajuste de estado durante o
-  // render (padrão recomendado pelo React pra "estado derivado de uma prop
-  // que mudou"), não um useEffect com setState síncrono, que dispararia
-  // re-renders em cascata.
+  // Último valor de busca "conhecido" (da URL) — estado, não ref, porque É
+  // lido durante o render (refs não podem). Distingue "a URL mudou porque a
+  // navegação que eu mesmo disparei (debounce) terminou" (não deve
+  // sobrescrever o campo: sob latência real, o usuário pode já ter digitado
+  // mais teclas enquanto essa navegação estava em voo) de "a URL mudou por
+  // outro motivo" (filtro salvo aplicado, navegação back/forward — aí sim
+  // precisa adotar o valor novo no campo). Atualizado em dois lugares, nenhum
+  // deles durante o render: otimisticamente no próprio debounce (abaixo, já
+  // dentro de um `setTimeout`) e reconciliado no bloco de ajuste de estado
+  // logo adiante (que roda durante o render, mas chamar um setState ali é o
+  // padrão sancionado pelo React para "estado derivado de uma prop que
+  // mudou" — different de mutar/ler um ref).
+  const [lastPushedSearch, setLastPushedSearch] = useState(filterState.search);
+
+  // Sincroniza o campo local quando filterState.search muda por fora — ajuste
+  // de estado durante o render (padrão recomendado pelo React pra "estado
+  // derivado de uma prop que mudou"), não um useEffect com setState síncrono,
+  // que dispararia re-renders em cascata.
   const [syncedUrlSearch, setSyncedUrlSearch] = useState(filterState.search);
   if (filterState.search !== syncedUrlSearch) {
     setSyncedUrlSearch(filterState.search);
-    setSearchInput(filterState.search ?? "");
+    if (filterState.search !== lastPushedSearch) {
+      setSearchInput(filterState.search ?? "");
+    }
+    // Reconcilia independente da causa (eco do nosso próprio debounce ou
+    // mudança externa) — garante que a PRÓXIMA comparação acima sempre vale
+    // contra o valor certo, nunca contra um "último push" obsoleto.
+    setLastPushedSearch(filterState.search);
   }
 
   useEffect(() => {
     const handle = setTimeout(() => {
       const current = filterStateRef.current;
       if (searchInput !== (current.search ?? "")) {
-        setFilterState({ ...current, search: searchInput || undefined });
+        const nextSearch = searchInput || undefined;
+        // Otimista: marca ANTES de navegar, pra quando o commit chegar (via
+        // re-render) já sabermos que foi um eco nosso, não uma mudança
+        // externa — sem isso, digitar mais enquanto a navegação está em voo
+        // faria o commit tardio sobrescrever o que o usuário já digitou por
+        // cima (ver comentário acima).
+        setLastPushedSearch(nextSearch);
+        setFilterState({ ...current, search: nextSearch });
       }
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);

@@ -14,11 +14,22 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_DIR: "asc" | "desc" = "asc";
+// Únicos valores que o seletor "itens por página" do `DataGridPagination`
+// oferece (ver data-grid-pagination.tsx, `sizes` default) — qualquer outro
+// valor de URL (editado à mão) cai no default em vez de virar um `.range()`
+// arbitrariamente grande no servidor.
+const ALLOWED_PAGE_SIZES: readonly number[] = [5, 10, 25, 50, 100];
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   if (value === null) return fallback;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePageSize(value: string | null, fallback: number): number {
+  if (value === null) return fallback;
+  const parsed = Number(value);
+  return ALLOWED_PAGE_SIZES.includes(parsed) ? parsed : fallback;
 }
 
 function parseDir(value: string | null): "asc" | "desc" {
@@ -50,7 +61,7 @@ export function useEntityListUrlState<
   }, [searchParams, filterKeysKey]);
 
   const page = parsePositiveInt(searchParams.get("page"), DEFAULT_PAGE);
-  const pageSize = parsePositiveInt(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE);
+  const pageSize = parsePageSize(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE);
   const sort = searchParams.get("sort") ?? defaults.sort;
   const dir = parseDir(searchParams.get("dir"));
 
@@ -95,8 +106,11 @@ export function useEntityListUrlState<
 
   const setPageSize = useCallback(
     (size: number) => {
+      // Defesa em profundidade: quem chama hoje só repassa um dos valores do
+      // seletor (sempre válido), mas não custa não confiar cegamente.
+      const validSize = ALLOWED_PAGE_SIZES.includes(size) ? size : DEFAULT_PAGE_SIZE;
       navigate({
-        pageSize: size === DEFAULT_PAGE_SIZE ? undefined : String(size),
+        pageSize: validSize === DEFAULT_PAGE_SIZE ? undefined : String(validSize),
         page: undefined,
       });
     },

@@ -13,6 +13,12 @@ const DEFAULT_SORT = "full_name";
 // lista (editado manualmente) cai no default em vez de virar `.order()` com
 // um nome de coluna arbitrário/inexistente.
 const ALLOWED_SORT_COLUMNS = [DEFAULT_SORT] as const;
+// Únicos valores que o seletor "itens por página" do `DataGridPagination`
+// oferece (mesma allowlist de `entity-list-url-state.ts`, duplicada aqui de
+// propósito — Server Component, não pode importar de um módulo "use
+// client") — um `pageSize` de URL fora desta lista cai no default em vez de
+// virar um `.range()` arbitrariamente grande.
+const ALLOWED_PAGE_SIZES = [5, 10, 25, 50, 100] as const;
 
 // `searchParams` pode vir array se a mesma chave repetir na URL — só o
 // primeiro valor importa aqui (mesmo comportamento de `useEntityListUrlState`
@@ -25,6 +31,12 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePageSize(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return (ALLOWED_PAGE_SIZES as readonly number[]).includes(parsed) ? parsed : fallback;
 }
 
 // Resolve os `contact_id` com vínculo ATUAL (end_date null) na Empresa dada
@@ -172,7 +184,7 @@ export default async function ContactsPage({
   const title = paramToString(params.title);
   const orgId = paramToString(params.orgId);
   const page = parsePositiveInt(paramToString(params.page), DEFAULT_PAGE);
-  const pageSize = parsePositiveInt(paramToString(params.pageSize), DEFAULT_PAGE_SIZE);
+  const pageSize = parsePageSize(paramToString(params.pageSize), DEFAULT_PAGE_SIZE);
   const rawSort = paramToString(params.sort);
   const sort = ALLOWED_SORT_COLUMNS.includes(rawSort as (typeof ALLOWED_SORT_COLUMNS)[number])
     ? (rawSort as (typeof ALLOWED_SORT_COLUMNS)[number])
