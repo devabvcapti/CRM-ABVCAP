@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, filterList } from "./helpers";
+import { loginAsQa, deleteRowIfExists, filterList, forceClick } from "./helpers";
 
 const LIST_PATH = "/pt-BR/contacts";
 const ORG_LIST_PATH = "/pt-BR/organizations";
@@ -184,7 +184,12 @@ test.describe("contatos", () => {
       await page.locator("#org_id").click();
       await page.getByRole("option", { name: orgName }).click();
       await page.locator("#role").fill("Conselheiro");
-      await page.getByRole("button", { name: "Vincular" }).click();
+      // forceClick (ver helpers.ts): no projeto mobile-chromium, um .click()
+      // normal pode travar indefinidamente nesse botão (artefato de
+      // hit-test sob emulação de viewport mobile perto do fim da página,
+      // não um bug de produto — mesmo achado documentado em
+      // organization-links.spec.ts / ai-context/skills/04-ui-design-system.md).
+      await forceClick(page.getByRole("button", { name: "Vincular" }));
       // getByText(orgName) sozinho bate em DOIS elementos depois do vínculo
       // criado (o valor ainda mostrado no trigger do Select #org_id + a
       // linha nova na lista de vínculos) — strict-mode violation do
@@ -219,7 +224,8 @@ test.describe("contatos", () => {
       await page.locator("#org_id").click();
       await page.getByRole("option", { name: orgName }).click();
       await page.locator("#role").fill("Conselheiro");
-      await page.getByRole("button", { name: "Vincular" }).click();
+      // forceClick: mesmo artefato de hit-test do vínculo de nameA acima.
+      await forceClick(page.getByRole("button", { name: "Vincular" }));
       // Mesma ambiguidade de locator do vínculo de nameA acima — escopar
       // pro listitem em vez do getByText(orgName) solto.
       const linkRowC = page.getByRole("listitem").filter({ hasText: orgName });
