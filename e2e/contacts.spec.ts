@@ -503,6 +503,13 @@ test.describe("contatos", () => {
   test("picker de Tags no detalhe: cria, não duplica por nome com espaços, remove sem apagar do catálogo", async ({
     page,
   }) => {
+    // Mesmo motivo do test.setTimeout da suíte de filtros (ver comentário lá
+    // em cima, ~linha 267): 1 org + 3 contatos + 3 sequências de interação
+    // com o picker de Tags, cada uma com sua própria navegação — passou
+    // sempre localmente, mas estourou o timeout padrão de 30s em CI
+    // (mobile-chromium, 3/3 tentativas) pela mesma razão de latência de
+    // leitura-após-escrita do Supabase hospedado.
+    test.setTimeout(90_000);
     const stamp = Date.now();
     const tagName = `E2E Tag ${stamp}`;
     const orgName = `E2E Org For Contact Tags ${stamp}`;
