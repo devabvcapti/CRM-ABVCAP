@@ -390,4 +390,104 @@ test.describe("contatos", () => {
       await deleteRowIfExists(page, ORG_LIST_PATH, otherOrgName);
     }
   });
+
+  // Task 2: picker de Tags no detalhe do Contato. Usa 3 contatos de apoio
+  // (A/B/C) ligados à mesma organização: A cria a tag e depois a remove, B
+  // anexa a MESMA tag digitando o nome com espaços extras (prova que o
+  // upsert por nome não duplica), C nunca recebe a tag — serve só pra
+  // verificar o catálogo global (se existisse um "quase-duplicado", ele
+  // apareceria como uma segunda opção ao buscar pelo nome em C). Não há tela
+  // de gestão de Tags no app (fora de escopo) — a linha criada em `tags`
+  // fica órfã no banco de QA após o teste, mesmo risco aceito de outros
+  // specs que não limpam entidades sem UI de exclusão própria.
+  test("picker de Tags no detalhe: cria, não duplica por nome com espaços, remove sem apagar do catálogo", async ({
+    page,
+  }) => {
+    const stamp = Date.now();
+    const tagName = `E2E Tag ${stamp}`;
+    const orgName = `E2E Org For Contact Tags ${stamp}`;
+    const nameA = `E2E Contact Tags A ${stamp}`;
+    const nameB = `E2E Contact Tags B ${stamp}`;
+    const nameC = `E2E Contact Tags C ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+
+      const urlA = await createContactViaQuickForm(page, {
+        name: nameA,
+        title: "Conselheiro",
+        email: "contato-tags-a@example.com",
+        phone: "11999990001",
+        orgName,
+      });
+      const urlB = await createContactViaQuickForm(page, {
+        name: nameB,
+        title: "Conselheiro",
+        email: "contato-tags-b@example.com",
+        phone: "11999990002",
+        orgName,
+      });
+      const urlC = await createContactViaQuickForm(page, {
+        name: nameC,
+        title: "Conselheiro",
+        email: "contato-tags-c@example.com",
+        phone: "11999990003",
+        orgName,
+      });
+
+      // --- Contato A: cria a tag nova via opção "criar".
+      await page.goto(urlA);
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await page.getByPlaceholder("Buscar ou criar tag…").fill(tagName);
+      await page.getByRole("option", { name: `Criar tag: "${tagName}"` }).click();
+      await expect(
+        page.getByRole("button", { name: `Remover tag ${tagName}` }),
+      ).toBeVisible();
+
+      // Reabre o picker: a tag recém-anexada não pode aparecer como opção
+      // (Review Focus — nunca oferecer uma tag já anexada).
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await expect(page.getByRole("option", { name: tagName })).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: "Adicionar tag" })).toBeVisible();
+
+      // --- Contato B: digita o MESMO nome com espaços extras e usa a opção
+      // "criar" — precisa anexar a tag EXISTENTE (mesmo id), não criar uma
+      // segunda tag quase-igual no catálogo.
+      await page.goto(urlB);
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await page.getByPlaceholder("Buscar ou criar tag…").fill(`  ${tagName}  `);
+      await page.getByRole("option", { name: `Criar tag: "${tagName}"` }).click();
+      await expect(
+        page.getByRole("button", { name: `Remover tag ${tagName}` }),
+      ).toBeVisible();
+
+      // --- Contato C (nunca recebeu a tag): busca pelo nome no catálogo
+      // inteiro — exatamente UMA opção deve bater (se B tivesse criado um
+      // quase-duplicado com espaços, apareceriam duas).
+      await page.goto(urlC);
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await page.getByPlaceholder("Buscar ou criar tag…").fill(tagName);
+      await expect(page.getByRole("option", { name: tagName })).toHaveCount(1);
+      await page.keyboard.press("Escape");
+
+      // --- De volta ao Contato A: remove a tag (botão de remover, sem
+      // confirm — reversível) — some do contato, mas continua existindo no
+      // catálogo (reabre o picker, a tag aparece de novo como opção).
+      await page.goto(urlA);
+      await page.getByRole("button", { name: `Remover tag ${tagName}` }).click();
+      await expect(
+        page.getByRole("button", { name: `Remover tag ${tagName}` }),
+      ).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await page.getByPlaceholder("Buscar ou criar tag…").fill(tagName);
+      await expect(page.getByRole("option", { name: tagName })).toHaveCount(1);
+    } finally {
+      await deleteRowIfExists(page, LIST_PATH, nameA);
+      await deleteRowIfExists(page, LIST_PATH, nameB);
+      await deleteRowIfExists(page, LIST_PATH, nameC);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
 });

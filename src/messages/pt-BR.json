@@ -78,6 +78,15 @@
     "filterCompanyLabel": "Empresa",
     "filterCompanyUnknown": "Empresa não encontrada"
   },
+  "ContactTags": {
+    "tagsTitle": "Tags",
+    "tagsEmpty": "Nenhuma tag ainda.",
+    "tagsAddButton": "Adicionar tag",
+    "tagsSearchPlaceholder": "Buscar ou criar tag…",
+    "tagsCreateOption": "Criar tag: \"{query}\"",
+    "tagsRemoveLabel": "Remover tag {name}",
+    "tagsError": "Não foi possível salvar as tags. Tente novamente."
+  },
   "InteractionsTimeline": {
     "title": "Linha do tempo de interações",
     "empty": "Nenhuma interação registrada ainda.",

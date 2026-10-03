@@ -203,3 +203,42 @@ export async function endOrganizationLink(linkId: string) {
     .eq("id", linkId);
   revalidateContacts();
 }
+
+// Upsert por nome (trim + onConflict organization_id,name): tanto "criar tag
+// nova" quanto "anexar tag existente" passam pela mesma chamada — o picker
+// (ContactTags) nunca precisa decidir qual dos dois casos está acontecendo.
+export async function addTagToContact(
+  contactId: string,
+  tagName: string,
+): Promise<{ error: boolean }> {
+  const trimmed = tagName.trim();
+  if (!trimmed) return { error: true };
+
+  const supabase = await createClient();
+  const { data: tag, error: tagError } = await supabase
+    .from("tags")
+    .upsert({ name: trimmed }, { onConflict: "organization_id,name" })
+    .select("id")
+    .single();
+  if (tagError || !tag) return { error: true };
+
+  const { error } = await supabase.from("entity_tags").insert({
+    tag_id: tag.id,
+    entity_type: "contact",
+    entity_id: contactId,
+  });
+  if (error) return { error: true };
+
+  revalidateContacts();
+  return { error: false };
+}
+
+// Remove só a linha de entity_tags (por id próprio) — nunca a tag do
+// catálogo, que continua disponível para outros contatos / re-anexação.
+export async function removeTagFromContact(entityTagId: string): Promise<{ error: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("entity_tags").delete().eq("id", entityTagId);
+  if (error) return { error: true };
+  revalidateContacts();
+  return { error: false };
+}
