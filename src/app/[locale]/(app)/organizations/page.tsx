@@ -13,7 +13,8 @@ export default async function OrganizationsPage() {
   const { data: savedFilters } = await supabase
     .from("saved_filters")
     .select("id, name, filter_state")
-    .eq("entity_type", "organization");
+    .eq("entity_type", "organization")
+    .order("name");
 
   return (
     <OrganizationsTable

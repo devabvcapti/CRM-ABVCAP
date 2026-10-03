@@ -162,7 +162,7 @@ export function SavedFiltersControl<TFilterState extends Record<string, string |
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                aria-label={t("deleteButtonLabel")}
+                aria-label={t("deleteButtonLabel", { name: item.name })}
                 onClick={() => handleDelete(item.id)}
               >
                 <Trash2Icon aria-hidden="true" />

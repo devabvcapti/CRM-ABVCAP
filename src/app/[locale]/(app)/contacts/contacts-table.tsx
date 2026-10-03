@@ -113,7 +113,7 @@ export function ContactsTable({
         if (companyFilter && organizationByContact[contact.id]?.id !== companyFilter) return false;
         return true;
       }),
-    [contacts, search, tagFilter, companyFilter],
+    [contacts, search, tagFilter, companyFilter, tagsByContact, organizationByContact],
   );
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Contact>[]>(
@@ -248,7 +248,8 @@ export function ContactsTable({
                   <SelectValue>
                     {(value: string | null) =>
                       value && value !== ALL_FILTER_VALUE
-                        ? companyOptions.find((org) => org.id === value)?.name ?? value
+                        ? companyOptions.find((org) => org.id === value)?.name ??
+                          t("filterCompanyUnknown")
                         : tSavedFilters("filterAllOption")
                     }
                   </SelectValue>

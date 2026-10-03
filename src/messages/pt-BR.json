@@ -72,7 +72,8 @@
     "linkErrorRequiredDate": "Informe a data de início.",
     "searchPlaceholder": "Buscar por nome…",
     "filterTagLabel": "Cargo",
-    "filterCompanyLabel": "Empresa"
+    "filterCompanyLabel": "Empresa",
+    "filterCompanyUnknown": "Empresa não encontrada"
   },
   "InteractionsTimeline": {
     "title": "Linha do tempo de interações",
@@ -168,7 +169,7 @@
     "cancel": "Cancelar",
     "deleteConfirm": "Tem certeza que deseja apagar este filtro salvo?",
     "deleteError": "Não foi possível apagar este filtro salvo. Tente novamente.",
-    "deleteButtonLabel": "Apagar filtro salvo",
+    "deleteButtonLabel": "Apagar filtro salvo \"{name}\"",
     "filterAllOption": "Todos"
   },
   "DataGrid": {

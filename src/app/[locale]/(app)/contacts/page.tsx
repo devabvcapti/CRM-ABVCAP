@@ -54,7 +54,8 @@ export default async function ContactsPage() {
   const { data: savedFilters } = await supabase
     .from("saved_filters")
     .select("id, name, filter_state")
-    .eq("entity_type", "contact");
+    .eq("entity_type", "contact")
+    .order("name");
 
   return (
     <ContactsTable
