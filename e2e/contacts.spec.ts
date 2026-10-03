@@ -267,6 +267,16 @@ test.describe("contatos", () => {
   test("filtro de empresa combina com a busca em AND; filtro de tag combina com Empresa em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
     page,
   }) => {
+    // Teste mais pesado da suíte (2 orgs + 3 contatos + anexar tag real +
+    // 2 filtros em AND + 2 fluxos de diálogo de filtro salvo + limpeza de
+    // 6 entidades no finally) — o timeout padrão de 30s já era apertado
+    // antes da dimensão de Tag voltar (Fix 3) e estourou em CI (latência de
+    // leitura-após-escrita do Supabase hospedado é maior em CI do que local,
+    // visível nos warnings `fetchEntityOrNull gave up after retries` do
+    // próprio log de CI, inclusive em specs não relacionados — não é bug de
+    // lógica deste teste, é orçamento de tempo insuficiente pro volume real
+    // de passos).
+    test.setTimeout(90_000);
     const stamp = Date.now();
     const prefix = `E2E Contact Filters ${stamp}`;
     const nameA = `${prefix} A`;
