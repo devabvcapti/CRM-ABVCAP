@@ -54,11 +54,14 @@ deixaria a outra pra trás com o mesmo defeito.
 Cada filtro/busca/página/ordenação vira um parâmetro de `searchParams` na
 própria rota da lista (`/contacts`, `/organizations`). Shape 1:1 com o
 `ContactFilterState`/`OrganizationFilterState` que já existe hoje (mesmos
-nomes de campo), mais `page` (1-based, default `1`), `sort` (nome da
-coluna; default `full_name`) e `dir` (`"asc"` | `"desc"`; default `"asc"`
-— mesma ordem padrão já usada hoje). Tamanho de página fixo em **10**
-(mesmo default atual do `EntityDataGrid`, não configurável pelo usuário
-nesta frente). Trocar um filtro ou página
+nomes de campo), mais `page` (1-based, default `1`), `pageSize` (default
+`10`, um dos valores já oferecidos pelo seletor "itens por página" do
+`DataGridPagination` — `5`/`10`/`25`/`50`/`100`, controle que já existe e
+funciona hoje, achado durante o detalhamento desta seção — corrigido aqui
+porque a versão anterior deste spec presumia incorretamente um tamanho
+fixo), `sort` (nome da coluna; default `full_name`) e `dir` (`"asc"` |
+`"desc"`; default `"asc"` — mesma ordem padrão já usada hoje). Trocar um
+filtro, página ou itens-por-página
 navega (`router.push`/`replace`, raso — sem reload de documento completo)
 pra URL nova; o Server Component da página lê `searchParams` e builda a
 query. Aplicar um filtro salvo (`SavedFiltersControl`) passa a ser
@@ -83,8 +86,9 @@ Em `contacts/page.tsx`, a partir de `searchParams`:
    nessa escala.
 5. **Ordenação**: `.order("full_name", { ascending })` — único campo
    ordenável (ver decisão sobre E-mail acima).
-6. **Paginação**: `.select("*", { count: "exact" })` + `.range(from, to)` —
-   o `count` vem na mesma chamada, sem query separada.
+6. **Paginação**: `.select("*", { count: "exact" })` + `.range(from, to)`,
+   onde `from = (page - 1) * pageSize` e `to = from + pageSize - 1` — o
+   `count` vem na mesma chamada, sem query separada.
 
 Os filtros de 2-4 combinam em AND entre si e com a busca por nome — mesma
 semântica de hoje, só que cada um aplicado como filtro de banco (via lista
@@ -104,12 +108,19 @@ ao padrão de Contatos.
 Hoje o componente é dono do próprio estado (`useState` de
 `pagination`/`sorting`, TanStack Table calcula tudo sobre o array completo
 recebido). Passa a receber `pagination`/`sorting` como props controladas
-(vindas da URL) e `totalCount` (separado de `data.length`, que agora é só
-o tamanho da página atual — 10-20 linhas). Internamente:
-`manualPagination: true`, `manualSorting: true`, com `onPaginationChange`/
-`onSortingChange` navegando via `router.push` em vez de só atualizar estado
-local. `DataGridPagination` continua igual visualmente — só troca a fonte
-dos números (`recordCount={totalCount}` em vez de `data.length`).
+(vindas da URL, incluindo `pageSize`) e `totalCount` (separado de
+`data.length`, que agora é só o tamanho da página atual, não mais a tabela
+inteira). Internamente: `manualPagination: true`, `manualSorting: true`,
+`pageCount` calculado a partir de `totalCount`/`pageSize` (TanStack usa
+isso pra `table.getPageCount()`), com `onPaginationChange`/
+`onSortingChange` navegando via `router.push` em vez de só atualizar
+estado local — isso cobre tanto trocar de página quanto o seletor
+"itens por página" já existente no `DataGridPagination`
+(`table.setPageSize()`, que passa a navegar igual a uma troca de página).
+`DataGridPagination` continua igual visualmente, sem mudança de código
+nele — só troca a fonte dos números que já consome via contexto
+(`recordCount={totalCount}` em vez de `data.length`, `table.state.pagination`
+agora controlado de fora).
 
 Mudança de contrato do componente compartilhado — ambas as tabelas (Contato
 e Organização) migram juntas, na mesma leva, pro mesmo contrato novo.
