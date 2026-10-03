@@ -1,26 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header";
+import { EntityDataGrid } from "@/components/shared/entity-data-grid";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
 import { ContactForm } from "./contact-form";
 import type { ContactFormState } from "./actions";
 
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
 
 export function ContactsTable({
   contacts,
@@ -39,8 +45,74 @@ export function ContactsTable({
 
   // Filtro client-side sobre a lista já carregada — não é busca full-text no
   // banco (isso fica para quando houver volume real de contatos que justifique).
-  const filteredContacts = contacts.filter((contact) =>
-    contact.full_name.toLowerCase().includes(search.trim().toLowerCase()),
+  // Memoizado: EntityDataGrid reseta a paginação para a página 1 sempre que a
+  // referência de `data` muda, e sem useMemo um re-render do pai (ex.: abrir
+  // o Sheet de "Novo contato") recriava o array a cada vez, jogando o usuário
+  // de volta à página 1 mesmo sem a busca ter mudado.
+  const filteredContacts = useMemo(
+    () =>
+      contacts.filter((contact) =>
+        contact.full_name.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [contacts, search],
+  );
+
+  const columns = useMemo<ColumnDef<DataGridFeatures, Contact>[]>(
+    () => [
+      {
+        accessorKey: "full_name",
+        id: "name",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colName")} />
+        ),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            {/* Decorativo: o nome do link já carrega o nome acessível da
+                célula — sem isso, as iniciais vazavam para o nome computado
+                e quebravam `getByRole("cell", { name, exact: true })` nos
+                testes E2E (ver ai-context/skills/04-ui-design-system.md). */}
+            <Avatar className="size-6" aria-hidden="true">
+              <AvatarFallback>{initials(row.original.full_name)}</AvatarFallback>
+            </Avatar>
+            <Link href={`/contacts/${row.original.id}`} className="font-medium">
+              {row.original.full_name}
+            </Link>
+          </div>
+        ),
+      },
+      {
+        id: "tags",
+        header: t("colTags"),
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {(tagsByContact[row.original.id] ?? []).map((tag) => (
+              <Badge key={tag} variant="outline">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: "email",
+        accessorFn: (row) => row.emails?.[0] ?? "",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colEmail")} />
+        ),
+        enableSorting: true,
+        cell: (info) => info.getValue() as string,
+      },
+      {
+        id: "phone",
+        accessorFn: (row) => row.phones?.[0] ?? "",
+        header: t("colPhone"),
+        enableSorting: false,
+        cell: (info) => info.getValue() as string,
+      },
+    ],
+    [tagsByContact, t],
   );
 
   function openCreate() {
@@ -75,38 +147,11 @@ export function ContactsTable({
             placeholder={t("searchPlaceholder")}
             className="max-w-sm"
           />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("colName")}</TableHead>
-                <TableHead>{t("colTags")}</TableHead>
-                <TableHead>{t("colEmail")}</TableHead>
-                <TableHead>{t("colPhone")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredContacts.map((contact) => (
-                <TableRow key={contact.id} className="cursor-pointer">
-                  <TableCell className="font-medium">
-                    <Link href={`/contacts/${contact.id}`} className="block">
-                      {contact.full_name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(tagsByContact[contact.id] ?? []).map((tag) => (
-                        <Badge key={tag} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>{contact.emails?.[0] ?? ""}</TableCell>
-                  <TableCell>{contact.phones?.[0] ?? ""}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <EntityDataGrid
+            columns={columns}
+            data={filteredContacts}
+            getRowId={(contact) => contact.id}
+          />
         </>
       )}
 

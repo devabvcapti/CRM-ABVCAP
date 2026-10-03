@@ -2,7 +2,7 @@
   "HomePage": {
     "title": "CRM ABVCAP",
     "tagline": "Institutional relationship intelligence for ABVCAP.",
-    "status": "Under construction — Phase 0: technical foundation.",
+    "status": "Institutional relationship CRM — Contacts and Organizations already in production.",
     "switchLocale": "Ver em Português",
     "switchLocaleTarget": "pt-BR"
   },
@@ -20,7 +20,7 @@
   },
   "DashboardPage": {
     "welcome": "Welcome, {email}",
-    "placeholder": "Contacts and Organizations screens arrive in Phase 1."
+    "placeholder": "Access the Contacts and Organizations records from the side menu."
   },
   "AppShell": {
     "navDashboard": "Dashboard",
@@ -146,5 +146,38 @@
     "errorRequiredType": "Select the type.",
     "errorRequiredTier": "Select the tier.",
     "errorGeneric": "Could not save. Please try again."
+  },
+  "DataGrid": {
+    "sortAscending": "Asc",
+    "sortDescending": "Desc",
+    "pinColumnStart": "Pin to left",
+    "pinColumnEnd": "Pin to right",
+    "moveColumnStart": "Move to left",
+    "moveColumnEnd": "Move to right",
+    "columnsMenu": "Columns",
+    "unpinColumn": "Unpin {title} column",
+    "toggleColumns": "Toggle Columns",
+    "rowCreate": "Add row",
+    "pinRow": "Pin row",
+    "unpinRow": "Unpin row",
+    "selectRow": "Select row",
+    "selectAll": "Select all",
+    "expandRow": "Expand row",
+    "collapseRow": "Collapse row",
+    "dragToReorder": "Drag to reorder",
+    "dragToReorderRow": "Drag to reorder row",
+    "reorderingUnavailable": "Reordering unavailable",
+    "loading": "Loading…",
+    "empty": "No data available",
+    "allRowsLoaded": "All records loaded",
+    "rowsPerPage": "Rows per page",
+    "paginationInfo": "{from} - {to} of {count}",
+    "previousPage": "Go to previous page",
+    "nextPage": "Go to next page",
+    "goToPage": "Go to page {page}",
+    "paginationEllipsis": "…",
+    "filterSelectedCount": "{count} selected",
+    "filterNoResults": "No results found.",
+    "filterClear": "Clear filters"
   }
 }

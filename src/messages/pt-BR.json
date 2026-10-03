@@ -2,7 +2,7 @@
   "HomePage": {
     "title": "CRM ABVCAP",
     "tagline": "Inteligência de relacionamento institucional para a ABVCAP.",
-    "status": "Em construção — Fase 0: fundação técnica do projeto.",
+    "status": "CRM de relacionamento institucional — Contatos e Organizações já em produção.",
     "switchLocale": "View in English",
     "switchLocaleTarget": "en-US"
   },
@@ -20,7 +20,7 @@
   },
   "DashboardPage": {
     "welcome": "Bem-vindo, {email}",
-    "placeholder": "As telas de Contatos e Organizações chegam na Fase 1."
+    "placeholder": "Acesse os cadastros de Contatos e Organizações pelo menu lateral."
   },
   "AppShell": {
     "navDashboard": "Dashboard",
@@ -146,5 +146,38 @@
     "errorRequiredType": "Selecione o tipo.",
     "errorRequiredTier": "Selecione o tier.",
     "errorGeneric": "Não foi possível salvar. Tente novamente."
+  },
+  "DataGrid": {
+    "sortAscending": "Crescente",
+    "sortDescending": "Decrescente",
+    "pinColumnStart": "Fixar à esquerda",
+    "pinColumnEnd": "Fixar à direita",
+    "moveColumnStart": "Mover para a esquerda",
+    "moveColumnEnd": "Mover para a direita",
+    "columnsMenu": "Colunas",
+    "unpinColumn": "Desafixar coluna {title}",
+    "toggleColumns": "Alternar colunas",
+    "rowCreate": "Adicionar linha",
+    "pinRow": "Fixar linha",
+    "unpinRow": "Desafixar linha",
+    "selectRow": "Selecionar linha",
+    "selectAll": "Selecionar todos",
+    "expandRow": "Expandir linha",
+    "collapseRow": "Recolher linha",
+    "dragToReorder": "Arrastar para reordenar",
+    "dragToReorderRow": "Arrastar para reordenar linha",
+    "reorderingUnavailable": "Reordenação indisponível",
+    "loading": "Carregando…",
+    "empty": "Nenhum registro encontrado.",
+    "allRowsLoaded": "Todos os registros foram carregados",
+    "rowsPerPage": "Linhas por página",
+    "paginationInfo": "{from} - {to} de {count}",
+    "previousPage": "Ir para a página anterior",
+    "nextPage": "Ir para a próxima página",
+    "goToPage": "Ir para a página {page}",
+    "paginationEllipsis": "…",
+    "filterSelectedCount": "{count} selecionado(s)",
+    "filterNoResults": "Nenhum resultado encontrado.",
+    "filterClear": "Limpar filtros"
   }
 }
