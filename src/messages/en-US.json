@@ -145,7 +145,29 @@
     "errorRequiredName": "Enter the organization's name.",
     "errorRequiredType": "Select the type.",
     "errorRequiredTier": "Select the tier.",
-    "errorGeneric": "Could not save. Please try again."
+    "errorGeneric": "Could not save. Please try again.",
+    "filterTypeLabel": "Type",
+    "filterTierLabel": "Tier",
+    "filterStatusLabel": "Status",
+    "filterSectorLabel": "Sector"
+  },
+  "SavedFilters": {
+    "title": "Saved filters",
+    "selectPlaceholder": "Apply saved filter",
+    "saveButton": "Save current filter",
+    "saveDialogTitle": "Save filter",
+    "saveDialogDescription": "Save the current search and filter combination to reapply it later.",
+    "nameLabel": "Filter name",
+    "nameFieldRequired": "Enter a name for the filter.",
+    "nameFieldDuplicate": "You already have a saved filter with that name.",
+    "saveError": "Could not save the filter. Please try again.",
+    "saving": "Saving…",
+    "saveConfirm": "Save",
+    "cancel": "Cancel",
+    "deleteConfirm": "Are you sure you want to delete this saved filter?",
+    "deleteError": "Could not delete this saved filter. Please try again.",
+    "deleteButtonLabel": "Delete saved filter",
+    "filterAllOption": "All"
   },
   "DataGrid": {
     "sortAscending": "Asc",
