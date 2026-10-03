@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,18 @@ export function OrganizationsTable({
   const [tierFilter, setTierFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [sectorFilter, setSectorFilter] = useState<string | undefined>(undefined);
+  // Temporário (Task 1): `EntityDataGrid` virou controlado (ver
+  // docs/superpowers/specs/2026-10-03-server-side-list-pagination-design.md)
+  // e Organizações ainda não migrou pra busca/filtro/paginação no servidor
+  // (Task 2, mesma frente) — pagination/sorting que antes viviam DENTRO do
+  // grid agora precisam vir de algum lugar; aqui replicam exatamente o
+  // mesmo comportamento client-side de antes, só realocado um nível acima.
+  // Task 2 substitui isto por `useEntityListUrlState`.
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const sectorOptions = useMemo(
     () => Array.from(new Set(organizations.flatMap((o) => o.priority_sectors))).sort(),
@@ -320,6 +332,11 @@ export function OrganizationsTable({
             columns={columns}
             data={filteredOrganizations}
             getRowId={(organization) => organization.id}
+            totalCount={filteredOrganizations.length}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            sorting={sorting}
+            onSortingChange={setSorting}
           />
         </>
       )}

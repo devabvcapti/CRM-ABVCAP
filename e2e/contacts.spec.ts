@@ -234,15 +234,33 @@ test.describe("contatos", () => {
         };
       }
 
-      await nameColumnSortButton.click();
-      const firstOrder = await rowOrder();
-      expect(firstOrder.a).toBeGreaterThanOrEqual(0);
-      expect(firstOrder.b).toBeGreaterThanOrEqual(0);
+      // Ordenação roda no servidor agora (ida real, não mais instantânea no
+      // cliente) — um clique só reflete na tela depois da navegação/re-fetch
+      // completar, então espera a ordem relativa de A/B mudar em vez de ler
+      // `rowOrder()` logo após o `.click()` (ver docs/superpowers/specs/
+      // 2026-10-03-server-side-list-pagination-design.md, "Fluxo de dados e
+      // testes").
+      const initialOrder = await rowOrder();
+      expect(initialOrder.a).toBeGreaterThanOrEqual(0);
+      expect(initialOrder.b).toBeGreaterThanOrEqual(0);
 
       await nameColumnSortButton.click();
+      await expect
+        .poll(async () => {
+          const current = await rowOrder();
+          return current.a < current.b;
+        })
+        .toBe(!(initialOrder.a < initialOrder.b));
+      const firstOrder = await rowOrder();
+
+      await nameColumnSortButton.click();
+      await expect
+        .poll(async () => {
+          const current = await rowOrder();
+          return current.a < current.b;
+        })
+        .toBe(!(firstOrder.a < firstOrder.b));
       const secondOrder = await rowOrder();
-      expect(secondOrder.a).toBeGreaterThanOrEqual(0);
-      expect(secondOrder.b).toBeGreaterThanOrEqual(0);
 
       expect(secondOrder.a < secondOrder.b).toBe(!(firstOrder.a < firstOrder.b));
     } finally {
@@ -275,8 +293,11 @@ test.describe("contatos", () => {
     // visível nos warnings `fetchEntityOrNull gave up after retries` do
     // próprio log de CI, inclusive em specs não relacionados — não é bug de
     // lógica deste teste, é orçamento de tempo insuficiente pro volume real
-    // de passos).
-    test.setTimeout(90_000);
+    // de passos). Subiu pra 120s nesta task (busca/filtro/paginação no
+    // servidor): cada troca de filtro agora é uma ida real ao servidor (debounce
+    // + navegação + re-render), não mais instantânea no cliente — este teste
+    // troca filtro várias vezes.
+    test.setTimeout(120_000);
     const stamp = Date.now();
     const prefix = `E2E Contact Filters ${stamp}`;
     const nameA = `${prefix} A`;
@@ -487,6 +508,120 @@ test.describe("contatos", () => {
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
+
+  // Task 1 (busca/filtro/paginação no servidor): prova que trocar um filtro
+  // reseta a paginação pra página 1, mesmo partindo de uma página 2+ — a
+  // paginação agora é de servidor (`useEntityListUrlState`/`page.tsx`), então
+  // sem este reset o usuário ficaria "preso" numa página que pode nem existir
+  // mais no conjunto filtrado (ex.: filtro reduz de 5 páginas pra 1, e o
+  // usuário estava na página 3).
+  test("mudar o filtro de Empresa a partir da página 2 volta pra página 1", async ({ page }) => {
+    // Pesado: 12 contatos + 2 orgs + navegação de paginação + troca de filtro
+    // — mesmo motivo de test.setTimeout dos outros testes grandes desta
+    // suíte (latência de leitura-após-escrita do Supabase hospedado em CI).
+    test.setTimeout(150_000);
+    const stamp = Date.now();
+    const prefix = `E2E Contact Page1 ${stamp}`;
+    const orgNameA = `E2E Org For Contact Page1 A ${stamp}`;
+    const orgNameB = `E2E Org For Contact Page1 B ${stamp}`;
+    // Nomes zero-padded (01..12) pra ordem alfabética (string) bater com a
+    // ordem numérica — 11 contatos na Empresa A (`${prefix} 01`..`${prefix}
+    // 11`) e 1 na Empresa B (`${prefix} 12`), 12 no total: 2 páginas de
+    // pageSize 10. Filtrar por Empresa A remove só o 12º (Empresa B), ainda
+    // restando 11 (2 páginas) — o 01 (alfabeticamente primeiro do conjunto
+    // filtrado) só aparece na página 1.
+    const names = Array.from({ length: 12 }, (_, index) => `${prefix} ${String(index + 1).padStart(2, "0")}`);
+
+    try {
+      await createOrg(page, orgNameA);
+      await createOrg(page, orgNameB);
+
+      for (const name of names.slice(0, 11)) {
+        await createContactViaQuickForm(page, {
+          name,
+          title: "Conselheiro",
+          email: "contato-page1@example.com",
+          phone: "11999990000",
+          orgName: orgNameA,
+        });
+      }
+      await createContactViaQuickForm(page, {
+        name: names[11],
+        title: "Conselheiro",
+        email: "contato-page1@example.com",
+        phone: "11999990000",
+        orgName: orgNameB,
+      });
+
+      await page.goto(LIST_PATH);
+      const searchInput = page.getByPlaceholder("Buscar por nome…");
+      await searchInput.fill(prefix);
+
+      // 12 resultados, ordenados por nome: página 1 mostra 01..10, página 2
+      // mostra 11 e 12.
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Ir para a página 2" }).click();
+      await expect(page.getByRole("cell", { name: names[10], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toHaveCount(0);
+
+      // Troca o filtro de Empresa a partir da página 2 — reduz pra 11
+      // resultados (ainda 2 páginas), e a paginação precisa voltar pra
+      // página 1 sozinha: o 01 (só existe na página 1 do conjunto filtrado)
+      // fica visível sem precisar clicar em "1" de novo.
+      await page.locator("#contact-company-filter").click();
+      await page.getByRole("option", { name: orgNameA, exact: true }).click();
+
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toHaveCount(0);
+    } finally {
+      for (const name of names) {
+        await deleteRowIfExists(page, LIST_PATH, name);
+      }
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgNameA);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgNameB);
+    }
+  });
+
+  // Task 1 (busca/filtro/paginação no servidor): prova que as opções do
+  // dropdown de Empresa vêm de um catálogo completo (query própria, nunca
+  // escopada aos dados já paginados/filtrados da lista) — 11 contatos novos
+  // (mais que 1 página) numa Empresa nova, sem aplicar nenhum filtro na
+  // lista: se as opções do dropdown tivessem vindo só da página 1 carregada
+  // (bug que esta mudança de arquitetura poderia reintroduzir por engano),
+  // a Empresa nova poderia não aparecer como opção.
+  test("dropdown de Empresa lista o catálogo completo, não só a página carregada", async ({ page }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const orgName = `E2E Org For Contact Dropdown Catalog ${stamp}`;
+    const names = Array.from({ length: 11 }, (_, index) => `E2E Contact Dropdown ${stamp} ${String(index + 1).padStart(2, "0")}`);
+
+    try {
+      await createOrg(page, orgName);
+      for (const name of names) {
+        await createContactViaQuickForm(page, {
+          name,
+          title: "Conselheiro",
+          email: "contato-dropdown@example.com",
+          phone: "11999990000",
+          orgName,
+        });
+      }
+
+      // Sem nenhum filtro aplicado — a lista mostra a página 1 do catálogo
+      // inteiro de Contatos (não escopada a estes 11 criados agora).
+      await page.goto(LIST_PATH);
+      await page.locator("#contact-company-filter").click();
+      await expect(page.getByRole("option", { name: orgName, exact: true })).toBeVisible();
+    } finally {
+      for (const name of names) {
+        await deleteRowIfExists(page, LIST_PATH, name);
+      }
       await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });

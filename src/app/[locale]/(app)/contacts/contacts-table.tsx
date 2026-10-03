@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, PaginationState, SortingState, Updater } from "@tanstack/react-table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
 import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header";
 import { EntityDataGrid } from "@/components/shared/entity-data-grid";
+import { useEntityListUrlState } from "@/components/shared/entity-list-url-state";
 import { SavedFiltersControl } from "@/components/shared/saved-filters-control";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
@@ -22,15 +23,29 @@ import type { ContactCreateFormState } from "./actions";
 type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
 // Shape exato do filter_state salvo em saved_filters para entity_type =
-// "contact" — reflete 1:1 os 3 useState abaixo (busca + 2 dropdowns). Campo
-// chama orgId (guarda o id da organização, não o nome) — mesma convenção de
-// orgType/tier/status/sector em OrganizationFilterState.
+// "contact" — reflete 1:1 os campos de busca/filtro geridos pelo hook
+// `useEntityListUrlState` abaixo. Campo chama orgId (guarda o id da
+// organização, não o nome) — mesma convenção de orgType/tier/status/sector em
+// OrganizationFilterState.
 export type ContactFilterState = {
   search?: string;
   tag?: string;
   title?: string;
   orgId?: string;
 };
+
+// Referência estável (módulo, não recriado a cada render) — evita que o
+// useMemo interno de useEntityListUrlState recalcule por uma nova identidade
+// de array a cada render do componente.
+const CONTACT_FILTER_KEYS: (keyof ContactFilterState & string)[] = [
+  "search",
+  "tag",
+  "title",
+  "orgId",
+];
+
+const DEFAULT_SORT = "full_name";
+const SEARCH_DEBOUNCE_MS = 350;
 
 // Sentinela só de UI pro item "Todos" do Select — nunca aparece em
 // filter_state (lá, "sem filtro" é undefined, não essa string).
@@ -47,14 +62,18 @@ function initials(name: string) {
 
 export function ContactsTable({
   contacts,
-  tagsByContact,
-  organizationByContact,
+  totalCount,
+  tagOptions,
+  titleOptions,
+  companyOptions,
   organizations,
   savedFilters,
 }: {
   contacts: Contact[];
-  tagsByContact: Record<string, string[]>;
-  organizationByContact: Record<string, { id: string; name: string }>;
+  totalCount: number;
+  tagOptions: string[];
+  titleOptions: string[];
+  companyOptions: { id: string; name: string }[];
   organizations: { id: string; name: string }[];
   savedFilters: { id: string; name: string; filter_state: ContactFilterState }[];
 }) {
@@ -65,77 +84,91 @@ export function ContactsTable({
   // Nonce incrementado a cada abertura — ver ai-context/skills/08-testing-quality.md:
   // key por identidade não basta (duas criações seguidas cairiam na mesma key).
   const [formKey, setFormKey] = useState(0);
-  const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
-  const [titleFilter, setTitleFilter] = useState<string | undefined>(undefined);
-  const [companyFilter, setCompanyFilter] = useState<string | undefined>(undefined);
 
-  const tagOptions = useMemo(
-    () => Array.from(new Set(Object.values(tagsByContact).flat())).sort(),
-    [tagsByContact],
-  );
+  const {
+    filterState,
+    page,
+    pageSize,
+    sort,
+    dir,
+    setFilterState,
+    setPage,
+    setPageSize,
+    setSorting,
+  } = useEntityListUrlState<ContactFilterState>(CONTACT_FILTER_KEYS, {
+    sort: DEFAULT_SORT,
+  });
 
-  // Mesmo padrão do tagOptions: lista só os valores de Cargo (`title`) que já
-  // existem entre os contatos carregados, não um catálogo fixo — `title` é
-  // texto livre, não tem tabela própria.
-  const titleOptions = useMemo(
-    () =>
-      Array.from(new Set(contacts.map((contact) => contact.title).filter((title): title is string => !!title))).sort(),
-    [contacts],
-  );
+  // Busca com debounce (350ms) antes de navegar — o campo em si continua
+  // controlado localmente pro valor digitado aparecer sem atraso; só a
+  // NAVEGAÇÃO (e portanto a ida ao servidor) é adiada. Ver docs/superpowers/
+  // specs/2026-10-03-server-side-list-pagination-design.md.
+  const [searchInput, setSearchInput] = useState(filterState.search ?? "");
+  // "Latest ref" só pro callback do debounce (abaixo) ler o filterState mais
+  // recente sem precisar reiniciar o timer a cada troca de tag/cargo/empresa
+  // — mutação sempre dentro de efeito, nunca durante o render (ver react-
+  // hooks/refs).
+  const filterStateRef = useRef(filterState);
+  useEffect(() => {
+    filterStateRef.current = filterState;
+  }, [filterState]);
 
-  // Dedup por id — vários contatos podem compartilhar a mesma organização.
-  const companyOptions = useMemo(
-    () =>
-      Array.from(
-        new Map(Object.values(organizationByContact).map((org) => [org.id, org])).values(),
-      ).sort((a, b) => a.name.localeCompare(b.name)),
-    [organizationByContact],
-  );
-
-  const currentFilterState: ContactFilterState = {
-    search,
-    tag: tagFilter,
-    title: titleFilter,
-    orgId: companyFilter,
-  };
-
-  function applyFilterState(filterState: ContactFilterState) {
-    setSearch(filterState.search ?? "");
-    setTagFilter(filterState.tag ?? undefined);
-    setTitleFilter(filterState.title ?? undefined);
-    setCompanyFilter(filterState.orgId ?? undefined);
+  // Sincroniza o campo local quando filterState.search muda por fora (filtro
+  // salvo aplicado, navegação back/forward) — ajuste de estado durante o
+  // render (padrão recomendado pelo React pra "estado derivado de uma prop
+  // que mudou"), não um useEffect com setState síncrono, que dispararia
+  // re-renders em cascata.
+  const [syncedUrlSearch, setSyncedUrlSearch] = useState(filterState.search);
+  if (filterState.search !== syncedUrlSearch) {
+    setSyncedUrlSearch(filterState.search);
+    setSearchInput(filterState.search ?? "");
   }
 
-  // Filtro client-side sobre a lista já carregada — não é busca full-text no
-  // banco (isso fica para quando houver volume real de contatos que
-  // justifique). Os 2 critérios de dropdown combinam com a busca por nome em
-  // AND (cada `if` abaixo descarta a linha, nunca inclui) — Cargo compara por
-  // `.includes()` (array — um contato pode ter várias tags), Empresa por
-  // igualdade de id (organizationByContact[contact.id] é undefined pra um
-  // contato sem vínculo institucional atual, daí o `?.` — nunca quebra, só
-  // nunca combina com um companyFilter ativo).
-  // Memoizado: EntityDataGrid reseta a paginação para a página 1 sempre que a
-  // referência de `data` muda, e sem useMemo um re-render do pai (ex.: abrir
-  // o Sheet de "Novo contato") recriava o array a cada vez, jogando o
-  // usuário de volta à página 1 mesmo sem a busca ter mudado.
-  const filteredContacts = useMemo(
-    () =>
-      contacts.filter((contact) => {
-        if (!contact.full_name.toLowerCase().includes(search.trim().toLowerCase())) return false;
-        if (tagFilter && !(tagsByContact[contact.id] ?? []).includes(tagFilter)) return false;
-        if (titleFilter && contact.title !== titleFilter) return false;
-        if (companyFilter && organizationByContact[contact.id]?.id !== companyFilter) return false;
-        return true;
-      }),
-    [contacts, search, tagFilter, titleFilter, companyFilter, tagsByContact, organizationByContact],
-  );
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const current = filterStateRef.current;
+      if (searchInput !== (current.search ?? "")) {
+        setFilterState({ ...current, search: searchInput || undefined });
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput, setFilterState]);
+
+  function updateFilter(key: keyof ContactFilterState, value: string | undefined) {
+    setFilterState({ ...filterState, [key]: value });
+  }
+
+  function handlePaginationChange(updater: Updater<PaginationState>) {
+    const current: PaginationState = { pageIndex: page - 1, pageSize };
+    const next = typeof updater === "function" ? updater(current) : updater;
+    if (next.pageSize !== current.pageSize) {
+      setPageSize(next.pageSize);
+    } else if (next.pageIndex !== current.pageIndex) {
+      setPage(next.pageIndex + 1);
+    }
+  }
+
+  function handleSortingChange(updater: Updater<SortingState>) {
+    const current: SortingState = [{ id: sort, desc: dir === "desc" }];
+    const next = typeof updater === "function" ? updater(current) : updater;
+    const nextSort = next[0];
+    if (!nextSort) {
+      setSorting(DEFAULT_SORT, "asc");
+    } else {
+      setSorting(nextSort.id, nextSort.desc ? "desc" : "asc");
+    }
+  }
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Contact>[]>(
     () => [
       {
+        // Sem `id` explícito: o default do TanStack (= accessorKey) faz o id
+        // da coluna bater com o nome da coluna no banco ("full_name"), que é
+        // o mesmo valor trafegado em `sort`/`dir` pela URL — sem isso,
+        // `column.getIsSorted()`/`sorting={[{ id: sort, ... }]}` nunca
+        // combinariam (coluna "name" vs. parâmetro "full_name"), e o clique
+        // no cabeçalho nunca seria reconhecido como "já ordenado por aqui".
         accessorKey: "full_name",
-        id: "name",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colName")} />
         ),
@@ -168,7 +201,11 @@ export function ContactsTable({
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colEmail")} />
         ),
-        enableSorting: true,
+        // Ordenação por E-mail removida (decisão da spec): não há forma
+        // limpa de ordenar por elemento de array via `.order()` do Supabase
+        // sem coluna/view computada à parte, e o ganho não justifica esse
+        // trabalho extra agora.
+        enableSorting: false,
         cell: (info) => info.getValue() as string,
       },
       {
@@ -204,120 +241,119 @@ export function ContactsTable({
         </Button>
       </div>
 
-      {contacts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("empty")}</p>
-      ) : (
-        <>
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="max-w-sm"
-          />
+      <Input
+        value={searchInput}
+        onChange={(event) => setSearchInput(event.target.value)}
+        placeholder={t("searchPlaceholder")}
+        className="max-w-sm"
+      />
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="contact-tag-filter">{t("filterTagLabel")}</Label>
-              <Select
-                value={tagFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setTagFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="contact-tag-filter">{t("filterTagLabel")}</Label>
+          <Select
+            value={filterState.tag ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("tag", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="contact-tag-filter" className="w-44">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="contact-tag-filter" className="w-44">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {tagOptions.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {tagOptions.map((tag) => (
+                <SelectItem key={tag} value={tag}>
+                  {tag}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="contact-title-filter">{t("filterTitleLabel")}</Label>
-              <Select
-                value={titleFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setTitleFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="contact-title-filter">{t("filterTitleLabel")}</Label>
+          <Select
+            value={filterState.title ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("title", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="contact-title-filter" className="w-44">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="contact-title-filter" className="w-44">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {titleOptions.map((title) => (
-                    <SelectItem key={title} value={title}>
-                      {title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {titleOptions.map((title) => (
+                <SelectItem key={title} value={title}>
+                  {title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="contact-company-filter">{t("filterCompanyLabel")}</Label>
-              <Select
-                value={companyFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setCompanyFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="contact-company-filter">{t("filterCompanyLabel")}</Label>
+          <Select
+            value={filterState.orgId ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("orgId", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="contact-company-filter" className="w-44">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE
+                    ? companyOptions.find((org) => org.id === value)?.name ??
+                      t("filterCompanyUnknown")
+                    : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="contact-company-filter" className="w-44">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE
-                        ? companyOptions.find((org) => org.id === value)?.name ??
-                          t("filterCompanyUnknown")
-                        : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {companyOptions.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {companyOptions.map((org) => (
+                <SelectItem key={org.id} value={org.id}>
+                  {org.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-          <SavedFiltersControl
-            entityType="contact"
-            savedFilters={savedFilters}
-            currentFilterState={currentFilterState}
-            onApply={applyFilterState}
-          />
+      <SavedFiltersControl
+        entityType="contact"
+        savedFilters={savedFilters}
+        currentFilterState={filterState}
+        onApply={setFilterState}
+      />
 
-          <EntityDataGrid
-            columns={columns}
-            data={filteredContacts}
-            getRowId={(contact) => contact.id}
-          />
-        </>
-      )}
+      <EntityDataGrid
+        columns={columns}
+        data={contacts}
+        getRowId={(contact) => contact.id}
+        totalCount={totalCount}
+        pagination={{ pageIndex: page - 1, pageSize }}
+        onPaginationChange={handlePaginationChange}
+        sorting={[{ id: sort, desc: dir === "desc" }]}
+        onSortingChange={handleSortingChange}
+      />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <ContactCreateForm key={formKey} organizations={organizations} onSaved={handleSaved} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
   DataGrid,
@@ -14,30 +14,39 @@ import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import type {
   ColumnDef,
+  OnChangeFn,
   PaginationState,
   SortingState,
 } from "@tanstack/react-table";
 import { useTable } from "@tanstack/react-table";
 
 // Data-grid de lista compartilhado entre entidades (Contatos, Organizações):
-// paginação + ordenação client-side sobre os dados já carregados, sem seleção
-// de célula, DnD, virtualização ou toggle de visibilidade de coluna — essas
-// features do registry `reui/data-grid` ficam de fora de propósito (YAGNI).
+// modo controlado — paginação/ordenação vêm de fora (URL, via
+// `useEntityListUrlState`) e a busca/filtro/paginação/ordenação de verdade
+// rodam no servidor (ver docs/superpowers/specs/2026-10-03-server-side-list-
+// pagination-design.md). Sem seleção de célula, DnD, virtualização ou toggle
+// de visibilidade de coluna — essas features do registry `reui/data-grid`
+// ficam de fora de propósito (YAGNI).
 export function EntityDataGrid<TData extends object>({
   columns,
   data,
   getRowId,
+  totalCount,
+  pagination,
+  onPaginationChange,
+  sorting,
+  onSortingChange,
 }: {
   columns: ColumnDef<DataGridFeatures, TData>[];
   data: TData[];
   getRowId: (row: TData) => string;
+  totalCount: number;
+  pagination: PaginationState;
+  onPaginationChange: OnChangeFn<PaginationState>;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
 }) {
   const t = useTranslations("DataGrid");
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const [sorting, setSorting] = useState<SortingState>([]);
 
   // Traduz todo o texto que o `reui/data-grid` renderiza por padrão em inglês
   // (ver ai-context/skills/05-i18n.md — nenhum texto hardcoded na UI). Cobre
@@ -91,18 +100,21 @@ export function EntityDataGrid<TData extends object>({
     columns,
     data,
     getRowId,
+    manualPagination: true,
+    manualSorting: true,
+    pageCount: Math.max(1, Math.ceil(totalCount / pagination.pageSize)),
     state: {
       pagination,
       sorting,
     },
-    onPaginationChange: setPagination,
-    onSortingChange: setSorting,
+    onPaginationChange,
+    onSortingChange,
   });
 
   return (
     <DataGrid
       table={table}
-      recordCount={data.length}
+      recordCount={totalCount}
       tableLayout={{ headerBackground: false }}
       i18n={i18n}
     >
