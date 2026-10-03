@@ -439,6 +439,41 @@ export type Database = {
           },
         ]
       }
+      saved_filters: {
+        Row: {
+          created_at: string
+          entity_type: string
+          filter_state: Json
+          id: string
+          name: string
+          user_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          filter_state: Json
+          id?: string
+          name: string
+          user_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          filter_state?: Json
+          id?: string
+          name?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_filters_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tags: {
         Row: {
           created_at: string

@@ -70,7 +70,10 @@
     "linkErrorRequiredOrg": "Selecione a organização.",
     "linkErrorRequiredRole": "Informe o cargo.",
     "linkErrorRequiredDate": "Informe a data de início.",
-    "searchPlaceholder": "Buscar por nome…"
+    "searchPlaceholder": "Buscar por nome…",
+    "filterTagLabel": "Cargo",
+    "filterCompanyLabel": "Empresa",
+    "filterCompanyUnknown": "Empresa não encontrada"
   },
   "InteractionsTimeline": {
     "title": "Linha do tempo de interações",
@@ -145,7 +148,29 @@
     "errorRequiredName": "Informe o nome da organização.",
     "errorRequiredType": "Selecione o tipo.",
     "errorRequiredTier": "Selecione o tier.",
-    "errorGeneric": "Não foi possível salvar. Tente novamente."
+    "errorGeneric": "Não foi possível salvar. Tente novamente.",
+    "filterTypeLabel": "Tipo",
+    "filterTierLabel": "Tier",
+    "filterStatusLabel": "Status",
+    "filterSectorLabel": "Setor"
+  },
+  "SavedFilters": {
+    "title": "Filtros salvos",
+    "selectPlaceholder": "Aplicar filtro salvo",
+    "saveButton": "Salvar filtro atual",
+    "saveDialogTitle": "Salvar filtro",
+    "saveDialogDescription": "Salve a combinação atual de busca e filtros para reaplicar depois.",
+    "nameLabel": "Nome do filtro",
+    "nameFieldRequired": "Informe um nome para o filtro.",
+    "nameFieldDuplicate": "Você já tem um filtro salvo com esse nome.",
+    "saveError": "Não foi possível salvar o filtro. Tente novamente.",
+    "saving": "Salvando…",
+    "saveConfirm": "Salvar",
+    "cancel": "Cancelar",
+    "deleteConfirm": "Tem certeza que deseja apagar este filtro salvo?",
+    "deleteError": "Não foi possível apagar este filtro salvo. Tente novamente.",
+    "deleteButtonLabel": "Apagar filtro salvo \"{name}\"",
+    "filterAllOption": "Todos"
   },
   "DataGrid": {
     "sortAscending": "Crescente",
