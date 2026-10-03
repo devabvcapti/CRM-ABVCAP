@@ -75,6 +75,7 @@
     "linkErrorRequiredDate": "Informe a data de início.",
     "searchPlaceholder": "Buscar por nome…",
     "filterTagLabel": "Tag",
+    "filterTitleLabel": "Cargo",
     "filterCompanyLabel": "Empresa",
     "filterCompanyUnknown": "Empresa não encontrada"
   },

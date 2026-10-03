@@ -28,6 +28,7 @@ type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 export type ContactFilterState = {
   search?: string;
   tag?: string;
+  title?: string;
   orgId?: string;
 };
 
@@ -66,11 +67,21 @@ export function ContactsTable({
   const [formKey, setFormKey] = useState(0);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+  const [titleFilter, setTitleFilter] = useState<string | undefined>(undefined);
   const [companyFilter, setCompanyFilter] = useState<string | undefined>(undefined);
 
   const tagOptions = useMemo(
     () => Array.from(new Set(Object.values(tagsByContact).flat())).sort(),
     [tagsByContact],
+  );
+
+  // Mesmo padrão do tagOptions: lista só os valores de Cargo (`title`) que já
+  // existem entre os contatos carregados, não um catálogo fixo — `title` é
+  // texto livre, não tem tabela própria.
+  const titleOptions = useMemo(
+    () =>
+      Array.from(new Set(contacts.map((contact) => contact.title).filter((title): title is string => !!title))).sort(),
+    [contacts],
   );
 
   // Dedup por id — vários contatos podem compartilhar a mesma organização.
@@ -85,12 +96,14 @@ export function ContactsTable({
   const currentFilterState: ContactFilterState = {
     search,
     tag: tagFilter,
+    title: titleFilter,
     orgId: companyFilter,
   };
 
   function applyFilterState(filterState: ContactFilterState) {
     setSearch(filterState.search ?? "");
     setTagFilter(filterState.tag ?? undefined);
+    setTitleFilter(filterState.title ?? undefined);
     setCompanyFilter(filterState.orgId ?? undefined);
   }
 
@@ -111,10 +124,11 @@ export function ContactsTable({
       contacts.filter((contact) => {
         if (!contact.full_name.toLowerCase().includes(search.trim().toLowerCase())) return false;
         if (tagFilter && !(tagsByContact[contact.id] ?? []).includes(tagFilter)) return false;
+        if (titleFilter && contact.title !== titleFilter) return false;
         if (companyFilter && organizationByContact[contact.id]?.id !== companyFilter) return false;
         return true;
       }),
-    [contacts, search, tagFilter, companyFilter, tagsByContact, organizationByContact],
+    [contacts, search, tagFilter, titleFilter, companyFilter, tagsByContact, organizationByContact],
   );
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Contact>[]>(
@@ -224,6 +238,34 @@ export function ContactsTable({
                   {tagOptions.map((tag) => (
                     <SelectItem key={tag} value={tag}>
                       {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="contact-title-filter">{t("filterTitleLabel")}</Label>
+              <Select
+                value={titleFilter ?? ALL_FILTER_VALUE}
+                onValueChange={(value) =>
+                  setTitleFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+                }
+              >
+                <SelectTrigger id="contact-title-filter" className="w-44">
+                  <SelectValue>
+                    {(value: string | null) =>
+                      value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>
+                    {tSavedFilters("filterAllOption")}
+                  </SelectItem>
+                  {titleOptions.map((title) => (
+                    <SelectItem key={title} value={title}>
+                      {title}
                     </SelectItem>
                   ))}
                 </SelectContent>

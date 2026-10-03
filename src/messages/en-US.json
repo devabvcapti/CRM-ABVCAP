@@ -75,6 +75,7 @@
     "linkErrorRequiredDate": "Enter the start date.",
     "searchPlaceholder": "Search by name…",
     "filterTagLabel": "Tag",
+    "filterTitleLabel": "Title",
     "filterCompanyLabel": "Company",
     "filterCompanyUnknown": "Company not found"
   },
