@@ -2,7 +2,7 @@
   "HomePage": {
     "title": "CRM ABVCAP",
     "tagline": "Inteligência de relacionamento institucional para a ABVCAP.",
-    "status": "Em construção — Fase 0: fundação técnica do projeto.",
+    "status": "CRM de relacionamento institucional — Contatos e Organizações já em produção.",
     "switchLocale": "View in English",
     "switchLocaleTarget": "en-US"
   },
@@ -20,7 +20,7 @@
   },
   "DashboardPage": {
     "welcome": "Bem-vindo, {email}",
-    "placeholder": "As telas de Contatos e Organizações chegam na Fase 1."
+    "placeholder": "Acesse os cadastros de Contatos e Organizações pelo menu lateral."
   },
   "AppShell": {
     "navDashboard": "Dashboard",

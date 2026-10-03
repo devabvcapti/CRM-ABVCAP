@@ -2,7 +2,7 @@
   "HomePage": {
     "title": "CRM ABVCAP",
     "tagline": "Institutional relationship intelligence for ABVCAP.",
-    "status": "Under construction — Phase 0: technical foundation.",
+    "status": "Institutional relationship CRM — Contacts and Organizations already in production.",
     "switchLocale": "Ver em Português",
     "switchLocaleTarget": "pt-BR"
   },
@@ -20,7 +20,7 @@
   },
   "DashboardPage": {
     "welcome": "Welcome, {email}",
-    "placeholder": "Contacts and Organizations screens arrive in Phase 1."
+    "placeholder": "Access the Contacts and Organizations records from the side menu."
   },
   "AppShell": {
     "navDashboard": "Dashboard",
