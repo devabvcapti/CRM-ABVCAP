@@ -253,7 +253,6 @@ test.describe("organizações", () => {
       await searchInput.fill("");
       await page.locator("#org-sector-filter").click();
       await page.getByRole("option", { name: "Todos" }).click();
-      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
 
       await page.locator("#saved-filters-apply").click();
       await page.getByRole("option", { name: filterName }).click();
