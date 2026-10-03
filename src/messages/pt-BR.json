@@ -71,7 +71,7 @@
     "linkErrorRequiredRole": "Informe o cargo.",
     "linkErrorRequiredDate": "Informe a data de início.",
     "searchPlaceholder": "Buscar por nome…",
-    "filterTagLabel": "Cargo",
+    "filterTagLabel": "Tag",
     "filterCompanyLabel": "Empresa",
     "filterCompanyUnknown": "Empresa não encontrada"
   },
