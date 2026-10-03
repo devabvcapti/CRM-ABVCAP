@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, filterList, forceClick } from "./helpers";
+import { loginAsQa, deleteRowIfExists, filterList } from "./helpers";
 
 const LIST_PATH = "/pt-BR/contacts";
 const ORG_LIST_PATH = "/pt-BR/organizations";
@@ -20,43 +20,107 @@ async function deleteSavedFilterIfExists(page: Page, name: string) {
   }
 }
 
+// Cadastro rápido (ContactCreateForm, Task 1): 5 campos obrigatórios, sempre
+// os mesmos passos — extraído aqui pra não repetir em cada teste. Navega pra
+// LIST_PATH, abre o Sheet, preenche e clica "Criar", mas NÃO espera a
+// navegação pro detalhe (quem chama decide o que checar depois, já que o
+// teste de validação (Step 13, campo obrigatório vazio) propositalmente não
+// navega).
+async function fillQuickCreateForm(
+  page: Page,
+  fields: { name?: string; title?: string; email?: string; phone?: string; orgName?: string },
+) {
+  await page.getByRole("button", { name: "Novo contato" }).click();
+  const dialog = page.getByRole("dialog", { name: "Novo contato" });
+  if (fields.name !== undefined) await dialog.locator("#full_name").fill(fields.name);
+  if (fields.title !== undefined) await dialog.locator("#title").fill(fields.title);
+  if (fields.email !== undefined) await dialog.locator("#email").fill(fields.email);
+  if (fields.phone !== undefined) await dialog.locator("#phone").fill(fields.phone);
+  if (fields.orgName !== undefined) {
+    await dialog.locator("#org_id").click();
+    await page.getByRole("option", { name: fields.orgName }).click();
+  }
+  return dialog;
+}
+
+async function createContactViaQuickForm(
+  page: Page,
+  fields: { name: string; title: string; email: string; phone: string; orgName: string },
+) {
+  await page.goto(LIST_PATH);
+  const dialog = await fillQuickCreateForm(page, fields);
+  await dialog.getByRole("button", { name: "Criar" }).click();
+  await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+  return page.url();
+}
+
+async function createOrg(page: Page, orgName: string) {
+  await page.goto(ORG_LIST_PATH);
+  await page.getByRole("button", { name: "Nova organização" }).click();
+  const orgDialog = page.getByRole("dialog", { name: "Nova organização" });
+  await orgDialog.locator("#name").fill(orgName);
+  await orgDialog.locator("#org_type").click();
+  await page.getByRole("option", { name: "Fundo de Private Equity" }).click();
+  await orgDialog.locator("#tier").click();
+  await page.getByRole("option", { name: "B", exact: true }).click();
+  await orgDialog.getByRole("button", { name: "Criar" }).click();
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+}
+
 test.describe("contatos", () => {
   test.beforeEach(async ({ page }) => {
     await loginAsQa(page);
   });
 
-  test("criar navega para o detalhe; editar e excluir a partir de lá", async ({ page }) => {
-    const name = `E2E Contact ${Date.now()}`;
+  test("cadastro rápido cria contato + vínculo institucional; editar e excluir a partir do detalhe", async ({
+    page,
+  }) => {
+    const stamp = Date.now();
+    const name = `E2E Contact ${stamp}`;
     const renamedTo = `${name} (editado)`;
+    const titleValue = `Diretor de Investimentos ${stamp}`;
+    const orgName = `E2E Org For Contact ${stamp}`;
 
     try {
-      await page.goto(LIST_PATH);
+      // Organização usada pelo <Select> de Empresa do cadastro rápido —
+      // precisa existir antes (nunca autocomplete com criação inline, spec
+      // "Fora de escopo").
+      await createOrg(page, orgName);
 
-      // Criar: ao contrário de Organizações, aqui o sucesso navega direto
-      // para a página de detalhe (é lá que ficam vínculos, timeline e as
-      // ações de editar/excluir) — não fica na lista.
-      await page.getByRole("button", { name: "Novo contato" }).click();
-      const createDialog = page.getByRole("dialog", { name: "Novo contato" });
-      await createDialog.locator("#full_name").fill(name);
-      await createDialog.locator("#tags").fill("Palestrante");
-      await createDialog.getByRole("button", { name: "Criar" }).click();
+      // Cadastro rápido: 5 campos (Nome, Cargo, E-mail, Telefone, Empresa) —
+      // ao contrário de Organizações, aqui o sucesso navega direto para a
+      // página de detalhe (é lá que ficam vínculos, timeline e as ações de
+      // editar/excluir) — não fica na lista.
+      const detailUrl = await createContactViaQuickForm(page, {
+        name,
+        title: titleValue,
+        email: "contato@example.com",
+        phone: "11999990000",
+        orgName,
+      });
 
-      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
-      const detailUrl = page.url();
       await expect(page.getByRole("heading", { name })).toBeVisible();
-      await expect(page.getByText("Palestrante")).toBeVisible();
+      // Cargo aparece como texto simples no header, não mais como badge
+      // (match exato: o mesmo valor também aparece dentro da linha de
+      // vínculo institucional abaixo, mas lá nunca sozinho — ver o
+      // `role · start – end` de organization-links.tsx — então exact:true
+      // aqui só bate no <p> do header).
+      await expect(page.getByText(titleValue, { exact: true })).toBeVisible();
 
-      // A tag "Palestrante" cadastrada na criação também aparece como badge
-      // na linha da lista, não só na página de detalhe. Filtra pelo nome
-      // único do contato antes de checar a linha — a lista pagina
-      // client-side (EntityDataGrid, pageSize 10) e sem o filtro a linha
-      // poderia cair numa página 2+ se a conta QA compartilhada já tiver 10+
-      // contatos ordenando antes dele (mesmo cuidado do teste de ordenação
-      // logo abaixo).
+      // Review Focus: cadastro rápido cria o vínculo institucional de
+      // verdade (organization_contacts), não um campo leve paralelo — a
+      // organização escolhida já aparece na seção de vínculos, com role =
+      // Cargo e sem precisar de nenhum passo manual extra.
+      const linkRow = page.getByRole("listitem").filter({ hasText: orgName });
+      await expect(linkRow).toContainText(titleValue);
+      await expect(linkRow).toContainText("atual");
+
+      // O Cargo cadastrado também aparece na coluna da lista (texto, não
+      // badge).
       await page.goto(LIST_PATH);
       await page.getByPlaceholder("Buscar por nome…").fill(name);
       await expect(
-        page.getByRole("row", { name }).getByText("Palestrante"),
+        page.getByRole("row", { name }).getByText(titleValue, { exact: true }),
       ).toBeVisible();
       await page.goto(detailUrl);
 
@@ -64,10 +128,36 @@ test.describe("contatos", () => {
       await page.getByRole("button", { name: "Editar" }).click();
       const editDialog = page.getByRole("dialog", { name: "Editar contato" });
       await expect(editDialog.locator("#full_name")).toHaveValue(name);
+      await expect(editDialog.locator("#title")).toHaveValue(titleValue);
+
+      // Review Focus (remoção completa): Idiomas e LinkedIn não existem mais
+      // em lugar nenhum do form de editar — nem como campo renomeado, nem
+      // escondido.
+      await expect(editDialog.getByLabel("Idiomas")).toHaveCount(0);
+      await expect(editDialog.getByLabel("LinkedIn")).toHaveCount(0);
+
+      // Renomeia e também limpa o Cargo (pra checar a seguir que um Cargo
+      // null não quebra nem vira a palavra "null" na lista).
       await editDialog.locator("#full_name").fill(renamedTo);
+      await editDialog.locator("#title").fill("");
       await editDialog.getByRole("button", { name: "Salvar" }).click();
       await expect(editDialog).toBeHidden();
       await expect(page.getByRole("heading", { name: renamedTo })).toBeVisible();
+
+      // Idiomas/LinkedIn também não aparecem mais no detalhe (nunca
+      // apareceram como rótulo solto fora do form, mas confirma que a seção
+      // da barra lateral não ressuscitou os campos removidos).
+      await expect(page.getByText("Idiomas", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("LinkedIn", { exact: true })).toHaveCount(0);
+
+      // Review Focus (Cargo vazio): a coluna da lista mostra "—", nunca a
+      // palavra "null".
+      await page.goto(LIST_PATH);
+      await page.getByPlaceholder("Buscar por nome…").fill(renamedTo);
+      const renamedRow = page.getByRole("row", { name: renamedTo });
+      await expect(renamedRow.getByText("—", { exact: true })).toBeVisible();
+      await expect(renamedRow).not.toContainText("null");
+      await page.goto(detailUrl);
 
       // Excluir: volta para a lista, e o contato não aparece mais lá.
       page.once("dialog", (dialog) => dialog.accept());
@@ -81,24 +171,62 @@ test.describe("contatos", () => {
     } finally {
       await deleteRowIfExists(page, LIST_PATH, renamedTo);
       await deleteRowIfExists(page, LIST_PATH, name);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
+
+  test("cadastro rápido bloqueia submit com campo obrigatório vazio", async ({ page }) => {
+    const stamp = Date.now();
+    const name = `E2E Contact Required ${stamp}`;
+    const orgName = `E2E Org For Contact Required ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+
+      // Review Focus: campo obrigatório vazio (Telefone) — o form bloqueia o
+      // submit com erro visível, nunca cria um contato pela metade.
+      await page.goto(LIST_PATH);
+      const dialog = await fillQuickCreateForm(page, {
+        name,
+        title: "Analista",
+        email: "contato-required@example.com",
+        orgName,
+        // phone propositalmente não preenchido.
+      });
+      await dialog.getByRole("button", { name: "Criar" }).click();
+
+      await expect(dialog.getByText("Informe o telefone.")).toBeVisible();
+      await expect(page).not.toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+
+      await dialog.getByRole("button", { name: "Cancelar" }).click();
+      await filterList(page, name);
+      await expect(page.getByRole("cell", { name, exact: true })).toHaveCount(0);
+    } finally {
+      await deleteRowIfExists(page, LIST_PATH, name);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });
 
   test("busca por nome filtra a lista", async ({ page }) => {
-    const nameA = `E2E Contact Search A ${Date.now()}`;
-    const nameB = `E2E Contact Search B ${Date.now()}`;
+    const stamp = Date.now();
+    const nameA = `E2E Contact Search A ${stamp}`;
+    const nameB = `E2E Contact Search B ${stamp}`;
+    const orgName = `E2E Org For Contact Search ${stamp}`;
 
     try {
+      await createOrg(page, orgName);
+
       // Cria dois contatos (cada criação navega pro detalhe — volta à lista
       // manualmente entre uma e outra, já que não há mais "criar em sequência"
       // no fluxo de Contatos).
       for (const name of [nameA, nameB]) {
-        await page.goto(LIST_PATH);
-        await page.getByRole("button", { name: "Novo contato" }).click();
-        const dialog = page.getByRole("dialog", { name: "Novo contato" });
-        await dialog.locator("#full_name").fill(name);
-        await dialog.getByRole("button", { name: "Criar" }).click();
-        await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+        await createContactViaQuickForm(page, {
+          name,
+          title: "Analista",
+          email: "contato-search@example.com",
+          phone: "11999990000",
+          orgName,
+        });
       }
 
       await page.goto(LIST_PATH);
@@ -142,10 +270,25 @@ test.describe("contatos", () => {
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });
 
-  test("filtros de cargo/empresa combinam em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
+  // Nota (Task 1): esta suíte testava "Cargo" (hoje `title`) e "Empresa"
+  // combinados em AND no filtro da lista. A dimensão de Cargo usava o campo
+  // livre de tags do cadastro rápido antigo (`#tags`) pra popular
+  // `tagsByContact`/`#contact-tag-filter` — esse campo não existe mais (Cargo
+  // virou `contacts.title`, um valor único, não uma tag) e, depois desta
+  // task, NENHUMA tela ainda escreve em `entity_tags` para contatos (o picker
+  // de Tags de verdade só chega na Task 2, no detalhe do contato) — não há
+  // como popular `#contact-tag-filter` com um valor novo e isolado por este
+  // teste. O teste foi reduzido para só o filtro de Empresa (dimensão que
+  // continua inalterada, via `organization_contacts`) combinado com a busca
+  // por nome — mantém a cobertura de "dois critérios em AND" e toda a parte
+  // de filtros salvos (duplicidade de nome, reaplicar, apagar). Revisitar a
+  // combinação com `#contact-tag-filter` quando a Task 2 (picker de Tags)
+  // estiver no ar.
+  test("filtro de empresa combina com a busca em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
     page,
   }) => {
     const stamp = Date.now();
@@ -154,83 +297,41 @@ test.describe("contatos", () => {
     const nameB = `${prefix} B`;
     const nameC = `${prefix} C`;
     const orgName = `E2E Org For Contact Filters ${stamp}`;
-    const tagValue = `E2E Tag ${stamp}`;
-    const otherTagValue = `E2E Tag Other ${stamp}`;
+    const otherOrgName = `E2E Org For Contact Filters Other ${stamp}`;
     const filterName = `E2E Filtro Contato ${stamp}`;
 
     try {
-      // Organização usada como critério de Empresa — criada antes dos
-      // contatos, pra já existir no Select de vínculo institucional.
-      await page.goto(ORG_LIST_PATH);
-      await page.getByRole("button", { name: "Nova organização" }).click();
-      const orgDialog = page.getByRole("dialog", { name: "Nova organização" });
-      await orgDialog.locator("#name").fill(orgName);
-      await orgDialog.locator("#org_type").click();
-      await page.getByRole("option", { name: "Fundo de Private Equity" }).click();
-      await orgDialog.locator("#tier").click();
-      await page.getByRole("option", { name: "B", exact: true }).click();
-      await orgDialog.getByRole("button", { name: "Criar" }).click();
-      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      // orgName: critério de Empresa usado no filtro. otherOrgName: só
+      // existe pra dar um valor de Empresa a nameB (o cadastro rápido agora
+      // exige uma Empresa pra todo contato — não dá mais pra criar um
+      // contato "sem vínculo nenhum" por essa tela) que PRECISA não bater
+      // com o filtro de orgName.
+      await createOrg(page, orgName);
+      await createOrg(page, otherOrgName);
 
-      // nameA: Cargo=tagValue + vínculo institucional atual com orgName —
-      // bate os dois critérios.
-      await page.goto(LIST_PATH);
-      await page.getByRole("button", { name: "Novo contato" }).click();
-      const dialogA = page.getByRole("dialog", { name: "Novo contato" });
-      await dialogA.locator("#full_name").fill(nameA);
-      await dialogA.locator("#tags").fill(tagValue);
-      await dialogA.getByRole("button", { name: "Criar" }).click();
-      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
-      await page.locator("#org_id").click();
-      await page.getByRole("option", { name: orgName }).click();
-      await page.locator("#role").fill("Conselheiro");
-      // forceClick (ver helpers.ts): no projeto mobile-chromium, um .click()
-      // normal pode travar indefinidamente nesse botão (artefato de
-      // hit-test sob emulação de viewport mobile perto do fim da página,
-      // não um bug de produto — mesmo achado documentado em
-      // organization-links.spec.ts / ai-context/skills/04-ui-design-system.md).
-      await forceClick(page.getByRole("button", { name: "Vincular" }));
-      // getByText(orgName) sozinho bate em DOIS elementos depois do vínculo
-      // criado (o valor ainda mostrado no trigger do Select #org_id + a
-      // linha nova na lista de vínculos) — strict-mode violation do
-      // Playwright. Escopar pro listitem, mesmo padrão de
-      // organization-links.spec.ts.
-      const linkRowA = page.getByRole("listitem").filter({ hasText: orgName });
-      await expect(linkRowA).toContainText("Conselheiro");
-      await expect(linkRowA).toContainText("atual");
-
-      // nameB: mesmo Cargo=tagValue, SEM nenhum vínculo institucional — bate
-      // só o critério de Cargo. Review Focus do brief (Step 3): prova que o
-      // filtro de Empresa exclui quem não tem vínculo atual (organizationByContact
-      // não tem entrada pra esse contato) sem quebrar a tela.
-      await page.goto(LIST_PATH);
-      await page.getByRole("button", { name: "Novo contato" }).click();
-      const dialogB = page.getByRole("dialog", { name: "Novo contato" });
-      await dialogB.locator("#full_name").fill(nameB);
-      await dialogB.locator("#tags").fill(tagValue);
-      await dialogB.getByRole("button", { name: "Criar" }).click();
-      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
-
-      // nameC: Cargo diferente (otherTagValue) + vínculo com orgName — bate
-      // só o critério de Empresa. Junto com nameA/nameB, prova que os dois
-      // critérios valem ao mesmo tempo (AND), não só o último aplicado.
-      await page.goto(LIST_PATH);
-      await page.getByRole("button", { name: "Novo contato" }).click();
-      const dialogC = page.getByRole("dialog", { name: "Novo contato" });
-      await dialogC.locator("#full_name").fill(nameC);
-      await dialogC.locator("#tags").fill(otherTagValue);
-      await dialogC.getByRole("button", { name: "Criar" }).click();
-      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
-      await page.locator("#org_id").click();
-      await page.getByRole("option", { name: orgName }).click();
-      await page.locator("#role").fill("Conselheiro");
-      // forceClick: mesmo artefato de hit-test do vínculo de nameA acima.
-      await forceClick(page.getByRole("button", { name: "Vincular" }));
-      // Mesma ambiguidade de locator do vínculo de nameA acima — escopar
-      // pro listitem em vez do getByText(orgName) solto.
-      const linkRowC = page.getByRole("listitem").filter({ hasText: orgName });
-      await expect(linkRowC).toContainText("Conselheiro");
-      await expect(linkRowC).toContainText("atual");
+      // nameA/nameC: vínculo com orgName — batem o filtro de Empresa.
+      // nameB: vínculo com otherOrgName — não bate.
+      await createContactViaQuickForm(page, {
+        name: nameA,
+        title: "Conselheiro",
+        email: "contato-filters-a@example.com",
+        phone: "11999990001",
+        orgName,
+      });
+      await createContactViaQuickForm(page, {
+        name: nameB,
+        title: "Conselheiro",
+        email: "contato-filters-b@example.com",
+        phone: "11999990002",
+        orgName: otherOrgName,
+      });
+      await createContactViaQuickForm(page, {
+        name: nameC,
+        title: "Conselheiro",
+        email: "contato-filters-c@example.com",
+        phone: "11999990003",
+        orgName,
+      });
 
       await page.goto(LIST_PATH);
       const searchInput = page.getByPlaceholder("Buscar por nome…");
@@ -239,25 +340,17 @@ test.describe("contatos", () => {
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
 
-      // Step 1: só o Cargo (tagValue) — nameA/nameB batem; nameC (Cargo
-      // diferente) não aparece.
-      await page.locator("#contact-tag-filter").click();
-      await page.getByRole("option", { name: tagValue, exact: true }).click();
-      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
-      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
-      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
-
-      // Step 2: soma a Empresa (orgName), com o Cargo ainda selecionado —
-      // só nameA sobra. nameB tem o Cargo certo mas nenhum vínculo
-      // institucional atual (a Empresa ativa o exclui sem quebrar a tela);
-      // nameC tem o vínculo com orgName mas o Cargo errado.
+      // Busca por nome (prefix) + filtro de Empresa (orgName) combinados em
+      // AND — nameA/nameC batem os dois critérios; nameB bate a busca mas não
+      // a Empresa (vínculo com otherOrgName), e some da lista sem quebrar a
+      // tela.
       await page.locator("#contact-company-filter").click();
       await page.getByRole("option", { name: orgName, exact: true }).click();
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
-      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
 
-      // Step 4a: salva o filtro atual (busca=prefix + cargo + empresa) com
+      // Step 4a: salva o filtro atual (busca=prefix + empresa=orgName) com
       // nome único.
       await page.getByRole("button", { name: "Salvar filtro atual" }).click();
       const saveDialog = page.getByRole("dialog", { name: "Salvar filtro" });
@@ -281,14 +374,11 @@ test.describe("contatos", () => {
       await expect(duplicateDialog).toBeHidden();
       await expect(page.getByText(filterName, { exact: true })).toHaveCount(1);
 
-      // Step 4c: limpa busca/Cargo/Empresa — volta pro estado "mostrar
-      // tudo", onde os 3 contatos de teste aparecem juntos (nenhuma
-      // asserção de AUSÊNCIA aqui: limpar todos os filtros não exclui
-      // ninguém por definição, é exatamente o bug invertido do round de
-      // fix da Task 2 que este teste evita repetir). Depois reaplica o
-      // filtro salvo — os valores voltam exatamente como estavam.
-      await page.locator("#contact-tag-filter").click();
-      await page.getByRole("option", { name: "Todos" }).click();
+      // Step 4c: limpa busca/Empresa — volta pro estado "mostrar tudo", onde
+      // os 3 contatos de teste aparecem juntos (nenhuma asserção de AUSÊNCIA
+      // aqui: limpar todos os filtros não exclui ninguém por definição).
+      // Depois reaplica o filtro salvo — os valores voltam exatamente como
+      // estavam.
       await page.locator("#contact-company-filter").click();
       await page.getByRole("option", { name: "Todos" }).click();
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
@@ -301,7 +391,7 @@ test.describe("contatos", () => {
       await expect(searchInput).toHaveValue(prefix);
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
-      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
 
       // Step 4d: apaga o filtro salvo — confirma (window.confirm mockado,
       // mesmo padrão de deleteRowIfExists em helpers.ts) que some do
@@ -319,6 +409,7 @@ test.describe("contatos", () => {
       await deleteRowIfExists(page, LIST_PATH, nameB);
       await deleteRowIfExists(page, LIST_PATH, nameC);
       await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+      await deleteRowIfExists(page, ORG_LIST_PATH, otherOrgName);
     }
   });
 });

@@ -14,10 +14,8 @@ type Contact = Database["crm_abvcap"]["Tables"]["contacts"]["Row"];
 
 export function ContactEditDelete({
   contact,
-  contactTags,
 }: {
   contact: Contact;
-  contactTags: string[];
 }) {
   const t = useTranslations("ContactsPage");
   const router = useRouter();
@@ -55,12 +53,7 @@ export function ContactEditDelete({
       </Button>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <ContactForm
-          key={formKey}
-          contact={contact}
-          contactTags={contactTags}
-          onSaved={handleSaved}
-        />
+        <ContactForm key={formKey} contact={contact} onSaved={handleSaved} />
       </Sheet>
     </div>
   );

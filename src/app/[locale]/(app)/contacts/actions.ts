@@ -7,16 +7,35 @@ import { cleanupPolymorphicReferences } from "@/lib/supabase/polymorphic-cleanup
 
 const contactSchema = z.object({
   full_name: z.string().min(1),
+  title: z.string().optional(),
   emails: z.string().optional(),
   phones: z.string().optional(),
-  languages: z.string().optional(),
-  linkedin_url: z.string().optional(),
   notes: z.string().optional(),
-  tags: z.string().optional(),
 });
 
 export type ContactFormState = {
   error: "required_name" | "generic" | null;
+  success?: boolean;
+  id?: string;
+};
+
+const contactCreateSchema = z.object({
+  full_name: z.string().min(1),
+  title: z.string().min(1),
+  email: z.string().min(1),
+  phone: z.string().min(1),
+  org_id: z.string().min(1),
+});
+
+export type ContactCreateFormState = {
+  error:
+    | "required_name"
+    | "required_title"
+    | "required_email"
+    | "required_phone"
+    | "required_org"
+    | "generic"
+    | null;
   success?: boolean;
   id?: string;
 };
@@ -41,72 +60,56 @@ function splitList(value?: string) {
 function parseForm(formData: FormData) {
   return contactSchema.safeParse({
     full_name: formData.get("full_name"),
+    title: formData.get("title") || undefined,
     emails: formData.get("emails") || undefined,
     phones: formData.get("phones") || undefined,
-    languages: formData.get("languages") || undefined,
-    linkedin_url: formData.get("linkedin_url") || undefined,
     notes: formData.get("notes") || undefined,
-    tags: formData.get("tags") || undefined,
   });
 }
 
-async function syncTags(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  contactId: string,
-  tagNames: string[],
-) {
-  await supabase
-    .from("entity_tags")
-    .delete()
-    .eq("entity_type", "contact")
-    .eq("entity_id", contactId);
-
-  const names = [...new Set(tagNames.map((name) => name.trim()).filter(Boolean))];
-  if (names.length === 0) return;
-
-  const { data: tagRows } = await supabase
-    .from("tags")
-    .upsert(
-      names.map((name) => ({ name })),
-      { onConflict: "organization_id,name" },
-    )
-    .select("id");
-
-  if (!tagRows?.length) return;
-
-  await supabase.from("entity_tags").insert(
-    tagRows.map((tag) => ({
-      tag_id: tag.id,
-      entity_type: "contact",
-      entity_id: contactId,
-    })),
-  );
-}
-
 export async function createContact(
-  _prevState: ContactFormState,
+  _prevState: ContactCreateFormState,
   formData: FormData,
-): Promise<ContactFormState> {
-  const parsed = parseForm(formData);
-  if (!parsed.success) return { error: "required_name" };
+): Promise<ContactCreateFormState> {
+  const parsed = contactCreateSchema.safeParse({
+    full_name: formData.get("full_name"),
+    title: formData.get("title"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    org_id: formData.get("org_id"),
+  });
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    if (fieldErrors.full_name) return { error: "required_name" };
+    if (fieldErrors.title) return { error: "required_title" };
+    if (fieldErrors.email) return { error: "required_email" };
+    if (fieldErrors.phone) return { error: "required_phone" };
+    return { error: "required_org" };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("contacts")
     .insert({
       full_name: parsed.data.full_name,
-      emails: splitList(parsed.data.emails),
-      phones: splitList(parsed.data.phones),
-      languages: splitList(parsed.data.languages),
-      linkedin_url: parsed.data.linkedin_url || null,
-      notes: parsed.data.notes || null,
+      title: parsed.data.title,
+      emails: [parsed.data.email],
+      phones: [parsed.data.phone],
     })
     .select("id")
     .single();
 
   if (error || !data) return { error: "generic" };
 
-  await syncTags(supabase, data.id, splitList(parsed.data.tags));
+  // Review Focus: se este segundo insert falhar, o contato acima já
+  // existe (risco aceito pela spec, sem transação) — mas o form NUNCA
+  // pode reportar sucesso nesse caso.
+  const { error: linkError } = await supabase.from("organization_contacts").insert({
+    contact_id: data.id,
+    org_id: parsed.data.org_id,
+    role: parsed.data.title,
+  });
+  if (linkError) return { error: "generic" };
 
   revalidateContacts();
   return { error: null, success: true, id: data.id };
@@ -125,17 +128,14 @@ export async function updateContact(
     .from("contacts")
     .update({
       full_name: parsed.data.full_name,
+      title: parsed.data.title || null,
       emails: splitList(parsed.data.emails),
       phones: splitList(parsed.data.phones),
-      languages: splitList(parsed.data.languages),
-      linkedin_url: parsed.data.linkedin_url || null,
       notes: parsed.data.notes || null,
     })
     .eq("id", id);
 
   if (error) return { error: "generic" };
-
-  await syncTags(supabase, id, splitList(parsed.data.tags));
 
   revalidateContacts();
   return { error: null, success: true };

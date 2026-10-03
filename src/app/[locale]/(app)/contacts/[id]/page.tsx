@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEntityOrNull } from "@/lib/supabase/fetch-entity-or-not-found";
 import { OrganizationLinks, type OrganizationLinkRow } from "../organization-links";
@@ -79,16 +78,10 @@ export default async function ContactDetailPage({
           </Avatar>
           <div>
             <h1 className="text-xl font-semibold text-foreground">{contact.full_name}</h1>
-            <div className="flex flex-wrap gap-1">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="outline">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+            {contact.title && <p className="text-sm text-muted-foreground">{contact.title}</p>}
           </div>
         </div>
-        <ContactEditDelete contact={contact} contactTags={tags} />
+        <ContactEditDelete contact={contact} />
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -112,21 +105,6 @@ export default async function ContactDetailPage({
               contact.phones.map((phone) => <span key={phone}>{phone}</span>)
             ) : (
               <span className="text-muted-foreground">—</span>
-            )}
-            {contact.linkedin_url && (
-              <>
-                <h3 className="mt-2 mb-1 text-sm font-medium text-foreground">
-                  {t("fieldLinkedin")}
-                </h3>
-                <a
-                  href={contact.linkedin_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {contact.linkedin_url}
-                </a>
-              </>
             )}
             {contact.notes && (
               <>
