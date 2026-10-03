@@ -1,20 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header";
+import { EntityDataGrid } from "@/components/shared/entity-data-grid";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
 import type { OrganizationFormState } from "./actions";
@@ -43,6 +39,56 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
   // justifique).
   const filteredOrganizations = organizations.filter((organization) =>
     organization.name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
+  const columns = useMemo<ColumnDef<DataGridFeatures, Organization>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        id: "name",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colName")} />
+        ),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Link href={`/organizations/${row.original.id}`} className="font-medium">
+            {row.original.name}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "org_type",
+        id: "type",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colType")} />
+        ),
+        enableSorting: true,
+        cell: ({ row }) => t(`type${toPascalCase(row.original.org_type)}`),
+      },
+      {
+        accessorKey: "tier",
+        id: "tier",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colTier")} />
+        ),
+        enableSorting: true,
+        cell: ({ row }) => <Badge variant="outline">{row.original.tier}</Badge>,
+      },
+      {
+        accessorKey: "status",
+        id: "status",
+        header: ({ column }) => (
+          <DataGridColumnHeader column={column} title={t("colStatus")} />
+        ),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Badge variant={row.original.status === "ativo" ? "default" : "secondary"}>
+            {t(`status${toPascalCase(row.original.status)}`)}
+          </Badge>
+        ),
+      },
+    ],
+    [t],
   );
 
   function openCreate() {
@@ -77,36 +123,11 @@ export function OrganizationsTable({ organizations }: { organizations: Organizat
             placeholder={t("searchPlaceholder")}
             className="max-w-sm"
           />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("colName")}</TableHead>
-                <TableHead>{t("colType")}</TableHead>
-                <TableHead>{t("colTier")}</TableHead>
-                <TableHead>{t("colStatus")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrganizations.map((organization) => (
-                <TableRow key={organization.id} className="cursor-pointer">
-                  <TableCell className="font-medium">
-                    <Link href={`/organizations/${organization.id}`} className="block">
-                      {organization.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{t(`type${toPascalCase(organization.org_type)}`)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{organization.tier}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={organization.status === "ativo" ? "default" : "secondary"}>
-                      {t(`status${toPascalCase(organization.status)}`)}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <EntityDataGrid
+            columns={columns}
+            data={filteredOrganizations}
+            getRowId={(organization) => organization.id}
+          />
         </>
       )}
 

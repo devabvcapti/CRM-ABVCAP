@@ -73,6 +73,39 @@ test.describe("organizações", () => {
 
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+
+      // Ordenação pelo cabeçalho "Nome": restringe a busca ao prefixo comum
+      // às duas organizações de teste (evita que a paginação sobre a lista
+      // completa de organizações reais separe nameA/nameB em páginas
+      // diferentes), clica duas vezes no cabeçalho e confirma que a segunda
+      // ordem inverte a primeira (mesmo padrão de contacts.spec.ts).
+      await page.getByPlaceholder("Buscar por nome…").fill("E2E Org Search");
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+
+      const nameColumnSortButton = page
+        .getByRole("columnheader", { name: "Nome" })
+        .getByRole("button");
+
+      async function rowOrder() {
+        const rowTexts = await page.getByRole("row").allTextContents();
+        return {
+          a: rowTexts.findIndex((text) => text.includes(nameA)),
+          b: rowTexts.findIndex((text) => text.includes(nameB)),
+        };
+      }
+
+      await nameColumnSortButton.click();
+      const firstOrder = await rowOrder();
+      expect(firstOrder.a).toBeGreaterThanOrEqual(0);
+      expect(firstOrder.b).toBeGreaterThanOrEqual(0);
+
+      await nameColumnSortButton.click();
+      const secondOrder = await rowOrder();
+      expect(secondOrder.a).toBeGreaterThanOrEqual(0);
+      expect(secondOrder.b).toBeGreaterThanOrEqual(0);
+
+      expect(secondOrder.a < secondOrder.b).toBe(!(firstOrder.a < firstOrder.b));
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
