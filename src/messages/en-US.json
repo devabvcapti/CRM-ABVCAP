@@ -70,7 +70,9 @@
     "linkErrorRequiredOrg": "Select the organization.",
     "linkErrorRequiredRole": "Enter the role.",
     "linkErrorRequiredDate": "Enter the start date.",
-    "searchPlaceholder": "Search by name…"
+    "searchPlaceholder": "Search by name…",
+    "filterTagLabel": "Role",
+    "filterCompanyLabel": "Company"
   },
   "InteractionsTimeline": {
     "title": "Interaction timeline",

@@ -1,7 +1,24 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { loginAsQa, deleteRowIfExists, filterList } from "./helpers";
 
 const LIST_PATH = "/pt-BR/contacts";
+const ORG_LIST_PATH = "/pt-BR/organizations";
+
+// Best-effort, mesmo espírito de deleteRowIfExists (helpers.ts): não falha o
+// teste se o filtro já não existir (ex.: o próprio teste já apagou). Mesmo
+// padrão local de organizations.spec.ts (Task 2) — não promovido pra
+// helpers.ts porque é específico do fluxo de filtros salvos, usado só nos
+// dois specs de lista.
+async function deleteSavedFilterIfExists(page: Page, name: string) {
+  try {
+    const item = page.getByRole("listitem").filter({ hasText: name });
+    if ((await item.count()) === 0) return;
+    page.once("dialog", (dialog) => dialog.accept());
+    await item.getByRole("button").click();
+  } catch (error) {
+    console.warn(`deleteSavedFilterIfExists: limpeza de "${name}" falhou`, error);
+  }
+}
 
 test.describe("contatos", () => {
   test.beforeEach(async ({ page }) => {
@@ -125,6 +142,166 @@ test.describe("contatos", () => {
     } finally {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
+    }
+  });
+
+  test("filtros de cargo/empresa combinam em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
+    page,
+  }) => {
+    const stamp = Date.now();
+    const prefix = `E2E Contact Filters ${stamp}`;
+    const nameA = `${prefix} A`;
+    const nameB = `${prefix} B`;
+    const nameC = `${prefix} C`;
+    const orgName = `E2E Org For Contact Filters ${stamp}`;
+    const tagValue = `E2E Tag ${stamp}`;
+    const otherTagValue = `E2E Tag Other ${stamp}`;
+    const filterName = `E2E Filtro Contato ${stamp}`;
+
+    try {
+      // Organização usada como critério de Empresa — criada antes dos
+      // contatos, pra já existir no Select de vínculo institucional.
+      await page.goto(ORG_LIST_PATH);
+      await page.getByRole("button", { name: "Nova organização" }).click();
+      const orgDialog = page.getByRole("dialog", { name: "Nova organização" });
+      await orgDialog.locator("#name").fill(orgName);
+      await orgDialog.locator("#org_type").click();
+      await page.getByRole("option", { name: "Fundo de Private Equity" }).click();
+      await orgDialog.locator("#tier").click();
+      await page.getByRole("option", { name: "B", exact: true }).click();
+      await orgDialog.getByRole("button", { name: "Criar" }).click();
+      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+
+      // nameA: Cargo=tagValue + vínculo institucional atual com orgName —
+      // bate os dois critérios.
+      await page.goto(LIST_PATH);
+      await page.getByRole("button", { name: "Novo contato" }).click();
+      const dialogA = page.getByRole("dialog", { name: "Novo contato" });
+      await dialogA.locator("#full_name").fill(nameA);
+      await dialogA.locator("#tags").fill(tagValue);
+      await dialogA.getByRole("button", { name: "Criar" }).click();
+      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+      await page.locator("#org_id").click();
+      await page.getByRole("option", { name: orgName }).click();
+      await page.locator("#role").fill("Conselheiro");
+      await page.getByRole("button", { name: "Vincular" }).click();
+      await expect(page.getByText(orgName)).toBeVisible();
+
+      // nameB: mesmo Cargo=tagValue, SEM nenhum vínculo institucional — bate
+      // só o critério de Cargo. Review Focus do brief (Step 3): prova que o
+      // filtro de Empresa exclui quem não tem vínculo atual (organizationByContact
+      // não tem entrada pra esse contato) sem quebrar a tela.
+      await page.goto(LIST_PATH);
+      await page.getByRole("button", { name: "Novo contato" }).click();
+      const dialogB = page.getByRole("dialog", { name: "Novo contato" });
+      await dialogB.locator("#full_name").fill(nameB);
+      await dialogB.locator("#tags").fill(tagValue);
+      await dialogB.getByRole("button", { name: "Criar" }).click();
+      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+
+      // nameC: Cargo diferente (otherTagValue) + vínculo com orgName — bate
+      // só o critério de Empresa. Junto com nameA/nameB, prova que os dois
+      // critérios valem ao mesmo tempo (AND), não só o último aplicado.
+      await page.goto(LIST_PATH);
+      await page.getByRole("button", { name: "Novo contato" }).click();
+      const dialogC = page.getByRole("dialog", { name: "Novo contato" });
+      await dialogC.locator("#full_name").fill(nameC);
+      await dialogC.locator("#tags").fill(otherTagValue);
+      await dialogC.getByRole("button", { name: "Criar" }).click();
+      await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+      await page.locator("#org_id").click();
+      await page.getByRole("option", { name: orgName }).click();
+      await page.locator("#role").fill("Conselheiro");
+      await page.getByRole("button", { name: "Vincular" }).click();
+      await expect(page.getByText(orgName)).toBeVisible();
+
+      await page.goto(LIST_PATH);
+      const searchInput = page.getByPlaceholder("Buscar por nome…");
+      await searchInput.fill(prefix);
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
+
+      // Step 1: só o Cargo (tagValue) — nameA/nameB batem; nameC (Cargo
+      // diferente) não aparece.
+      await page.locator("#contact-tag-filter").click();
+      await page.getByRole("option", { name: tagValue, exact: true }).click();
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+
+      // Step 2: soma a Empresa (orgName), com o Cargo ainda selecionado —
+      // só nameA sobra. nameB tem o Cargo certo mas nenhum vínculo
+      // institucional atual (a Empresa ativa o exclui sem quebrar a tela);
+      // nameC tem o vínculo com orgName mas o Cargo errado.
+      await page.locator("#contact-company-filter").click();
+      await page.getByRole("option", { name: orgName, exact: true }).click();
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+
+      // Step 4a: salva o filtro atual (busca=prefix + cargo + empresa) com
+      // nome único.
+      await page.getByRole("button", { name: "Salvar filtro atual" }).click();
+      const saveDialog = page.getByRole("dialog", { name: "Salvar filtro" });
+      await expect(saveDialog).toBeVisible();
+      await saveDialog.locator("#name").fill(filterName);
+      await saveDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+      await expect(saveDialog).toBeHidden();
+      await expect(page.getByText(filterName, { exact: true })).toHaveCount(1);
+
+      // Step 4b: salvar outro filtro com o MESMO nome — mensagem de erro
+      // visível, e ainda só UM filtro salvo com esse nome.
+      await page.getByRole("button", { name: "Salvar filtro atual" }).click();
+      const duplicateDialog = page.getByRole("dialog", { name: "Salvar filtro" });
+      await expect(duplicateDialog).toBeVisible();
+      await duplicateDialog.locator("#name").fill(filterName);
+      await duplicateDialog.getByRole("button", { name: "Salvar", exact: true }).click();
+      await expect(
+        duplicateDialog.getByText("Você já tem um filtro salvo com esse nome."),
+      ).toBeVisible();
+      await duplicateDialog.getByRole("button", { name: "Cancelar" }).click();
+      await expect(duplicateDialog).toBeHidden();
+      await expect(page.getByText(filterName, { exact: true })).toHaveCount(1);
+
+      // Step 4c: limpa busca/Cargo/Empresa — volta pro estado "mostrar
+      // tudo", onde os 3 contatos de teste aparecem juntos (nenhuma
+      // asserção de AUSÊNCIA aqui: limpar todos os filtros não exclui
+      // ninguém por definição, é exatamente o bug invertido do round de
+      // fix da Task 2 que este teste evita repetir). Depois reaplica o
+      // filtro salvo — os valores voltam exatamente como estavam.
+      await page.locator("#contact-tag-filter").click();
+      await page.getByRole("option", { name: "Todos" }).click();
+      await page.locator("#contact-company-filter").click();
+      await page.getByRole("option", { name: "Todos" }).click();
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
+      await searchInput.fill("");
+
+      await page.locator("#saved-filters-apply").click();
+      await page.getByRole("option", { name: filterName }).click();
+      await expect(searchInput).toHaveValue(prefix);
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+
+      // Step 4d: apaga o filtro salvo — confirma (window.confirm mockado,
+      // mesmo padrão de deleteRowIfExists em helpers.ts) que some do
+      // SavedFiltersControl.
+      page.once("dialog", (dialog) => dialog.accept());
+      await page
+        .getByRole("listitem")
+        .filter({ hasText: filterName })
+        .getByRole("button")
+        .click();
+      await expect(page.getByText(filterName, { exact: true })).toHaveCount(0);
+    } finally {
+      await deleteSavedFilterIfExists(page, filterName);
+      await deleteRowIfExists(page, LIST_PATH, nameA);
+      await deleteRowIfExists(page, LIST_PATH, nameB);
+      await deleteRowIfExists(page, LIST_PATH, nameC);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });
 });

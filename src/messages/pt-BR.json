@@ -70,7 +70,9 @@
     "linkErrorRequiredOrg": "Selecione a organização.",
     "linkErrorRequiredRole": "Informe o cargo.",
     "linkErrorRequiredDate": "Informe a data de início.",
-    "searchPlaceholder": "Buscar por nome…"
+    "searchPlaceholder": "Buscar por nome…",
+    "filterTagLabel": "Cargo",
+    "filterCompanyLabel": "Empresa"
   },
   "InteractionsTimeline": {
     "title": "Linha do tempo de interações",
