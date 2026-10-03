@@ -439,6 +439,58 @@ test.describe("contatos", () => {
     }
   });
 
+  // Filtro de Cargo (`#contact-title-filter`) na lista de Contatos — busca
+  // por `contacts.title` (campo novo, valor único, distinto de Tag). Teste
+  // enxuto de propósito (2 contatos, sem Empresa/filtro salvo): só prova que
+  // o filtro lista os valores de Cargo existentes e que filtrar por um deles
+  // esconde o contato com Cargo diferente, sem reusar o teste pesado acima
+  // (que já precisou de timeout estendido).
+  test("filtro de Cargo na lista de Contatos filtra por título, não por tag", async ({ page }) => {
+    const stamp = Date.now();
+    const orgName = `E2E Org For Contact Title Filter ${stamp}`;
+    const titleA = `E2E Diretor ${stamp}`;
+    const titleB = `E2E Analista ${stamp}`;
+    const nameA = `E2E Contact Title A ${stamp}`;
+    const nameB = `E2E Contact Title B ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+      await createContactViaQuickForm(page, {
+        name: nameA,
+        title: titleA,
+        email: "contato-title-a@example.com",
+        phone: "11999990001",
+        orgName,
+      });
+      await createContactViaQuickForm(page, {
+        name: nameB,
+        title: titleB,
+        email: "contato-title-b@example.com",
+        phone: "11999990002",
+        orgName,
+      });
+
+      await page.goto(LIST_PATH);
+      const searchInput = page.getByPlaceholder("Buscar por nome…");
+      await searchInput.fill(`E2E Contact Title`);
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+
+      await page.locator("#contact-title-filter").click();
+      await page.getByRole("option", { name: titleA, exact: true }).click();
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+
+      await page.locator("#contact-title-filter").click();
+      await page.getByRole("option", { name: "Todos" }).click();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toBeVisible();
+    } finally {
+      await deleteRowIfExists(page, LIST_PATH, nameA);
+      await deleteRowIfExists(page, LIST_PATH, nameB);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
+
   // Task 2: picker de Tags no detalhe do Contato. Usa 3 contatos de apoio
   // (A/B/C) ligados à mesma organização: A cria a tag e depois a remove, B
   // anexa a MESMA tag digitando o nome com espaços extras (prova que o
@@ -451,6 +503,13 @@ test.describe("contatos", () => {
   test("picker de Tags no detalhe: cria, não duplica por nome com espaços, remove sem apagar do catálogo", async ({
     page,
   }) => {
+    // Mesmo motivo do test.setTimeout da suíte de filtros (ver comentário lá
+    // em cima, ~linha 267): 1 org + 3 contatos + 3 sequências de interação
+    // com o picker de Tags, cada uma com sua própria navegação — passou
+    // sempre localmente, mas estourou o timeout padrão de 30s em CI
+    // (mobile-chromium, 3/3 tentativas) pela mesma razão de latência de
+    // leitura-após-escrita do Supabase hospedado.
+    test.setTimeout(90_000);
     const stamp = Date.now();
     const tagName = `E2E Tag ${stamp}`;
     const orgName = `E2E Org For Contact Tags ${stamp}`;
