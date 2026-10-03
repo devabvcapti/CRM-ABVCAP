@@ -361,47 +361,38 @@ test.describe("organizações", () => {
   // Task 2 (busca/filtro/paginação no servidor, mesmo padrão de contacts.spec.ts
   // Tarefa 1): prova que as opções do dropdown de Setor vêm de um catálogo
   // completo (query própria, nunca escopada à página já paginada/filtrada da
-  // lista). A organização com o setor único recebe um nome prefixado com
-  // "zzzzz" pra ordenar depois de qualquer organização pré-existente (ou das
-  // 10 organizações de "enchimento" criadas aqui) — garantindo que ela NUNCA
-  // cai na página 1 (pageSize 10, ordenado por nome) sem filtro nenhum
-  // aplicado: se as opções do dropdown tivessem vindo só da página 1
-  // carregada (bug que esta mudança de arquitetura poderia reintroduzir por
-  // engano), o setor novo não apareceria como opção.
+  // lista). Exclusão determinística por FILTRO (mesmo padrão do teste de
+  // reset de página acima, não por posição alfabética/volume de dados): a
+  // organização criada é Tipo "Fundo de Private Equity", e o teste filtra a
+  // lista por Tipo "Fundo de Venture Capital" — ela some do conjunto
+  // filtrado por construção (nenhuma suposição sobre nomes/dados pré-
+  // existentes no ambiente, ao contrário de depender de ordenação
+  // alfabética). `querySectorOptions` (page.tsx) não aplica esse filtro (nem
+  // nenhum outro) — catálogo incondicional — então o Setor dela precisa
+  // aparecer no dropdown mesmo assim: se as opções do dropdown tivessem
+  // vindo só do conjunto filtrado/paginado (bug que esta mudança de
+  // arquitetura poderia reintroduzir por engano), o setor novo não
+  // apareceria como opção.
   test("dropdown de Setor lista o catálogo completo, não só a página carregada", async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(120_000);
     const stamp = Date.now();
     const sector = `E2E Setor Catalog ${stamp}`;
-    const catalogOrgName = `zzzzz E2E Org Sector Catalog ${stamp}`;
-    const fillerNames = Array.from(
-      { length: 10 },
-      (_, index) => `E2E Org Sector Filler ${stamp} ${String(index + 1).padStart(2, "0")}`,
-    );
+    const catalogOrgName = `E2E Org Sector Catalog ${stamp}`;
 
     try {
-      for (const name of fillerNames) {
-        await page.goto(LIST_PATH);
-        await fillAndSubmitCreate(page, name);
-        await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
-      }
-
       await page.goto(LIST_PATH);
-      await fillAndSubmitCreate(page, catalogOrgName);
+      await fillAndSubmitCreate(page, catalogOrgName, "Fundo de Private Equity");
       await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
       await editStatusAndSector(page, { sector });
 
-      // Sem nenhum filtro aplicado — a lista mostra a página 1 do catálogo
-      // inteiro de Organizações (ordenado por nome), que não inclui a
-      // organização "zzzzz..." (ordena depois das 10 de enchimento, e de
-      // qualquer organização pré-existente).
       await page.goto(LIST_PATH);
+      await page.locator("#org-type-filter").click();
+      await page.getByRole("option", { name: "Fundo de Venture Capital" }).click();
       await expect(page.getByRole("cell", { name: catalogOrgName, exact: true })).toHaveCount(0);
+
       await page.locator("#org-sector-filter").click();
       await expect(page.getByRole("option", { name: sector, exact: true })).toBeVisible();
     } finally {
-      for (const name of fillerNames) {
-        await deleteRowIfExists(page, LIST_PATH, name);
-      }
       await deleteRowIfExists(page, LIST_PATH, catalogOrgName);
     }
   });
