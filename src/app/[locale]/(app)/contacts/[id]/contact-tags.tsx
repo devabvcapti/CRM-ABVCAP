@@ -32,10 +32,12 @@ const CREATE_TAG_ID = "__create_tag__";
 function TagAddPicker({
   contactId,
   options,
+  attachedTagNames,
   onDone,
 }: {
   contactId: string;
   options: TagOption[];
+  attachedTagNames: string[];
   onDone: () => void;
 }) {
   const t = useTranslations("ContactTags");
@@ -51,8 +53,32 @@ function TagAddPicker({
   const matches = query
     ? options.filter((option) => option.name.toLowerCase().includes(query.toLowerCase()))
     : options;
-  const items: TagOption[] =
-    matches.length > 0 ? matches : trimmedQuery ? [{ id: CREATE_TAG_ID, name: trimmedQuery }] : [];
+
+  // Fix do code review final (whole-branch): a opção "Criar tag" precisa
+  // aparecer sempre que o texto digitado (trimmed) não é vazio E não é uma
+  // cópia EXATA (case-insensitive) do nome de alguma tag já disponível para
+  // anexar OU já anexada a este contato — independente de quantos matches
+  // por SUBSTRING também aparecem na lista (a opção de criar é aditiva,
+  // nunca exclusiva com os matches). Antes, "Criar tag" só aparecia quando
+  // `matches` estava vazio, então digitar "Conselheiro" com uma tag
+  // "Conselheiro Fiscal" já existente no catálogo escondia a opção de criar
+  // "Conselheiro" (não há outra forma de criar tag no app). E, sem o check
+  // contra `attachedTagNames`, redigitar o nome EXATO de uma tag já anexada
+  // a este contato (que `options` já exclui) ainda oferecia "criar" — a
+  // tentativa batia direto na constraint `entity_tags_unique` e virava um
+  // alerta genérico em vez de simplesmente não oferecer a opção.
+  const normalizedQuery = trimmedQuery.toLowerCase();
+  const hasExactAvailableOption = options.some(
+    (option) => option.name.toLowerCase() === normalizedQuery,
+  );
+  const hasExactAttachedTag = attachedTagNames.some(
+    (name) => name.toLowerCase() === normalizedQuery,
+  );
+  const showCreateOption = trimmedQuery !== "" && !hasExactAvailableOption && !hasExactAttachedTag;
+
+  const items: TagOption[] = showCreateOption
+    ? [...matches, { id: CREATE_TAG_ID, name: trimmedQuery }]
+    : matches;
 
   async function handleSelect(item: TagOption | null) {
     if (!item) return;
@@ -150,6 +176,7 @@ export function ContactTags({
           key={pickerKey}
           contactId={contactId}
           options={availableOptions}
+          attachedTagNames={tags.map((tag) => tag.name)}
           onDone={() => setIsAdding(false)}
         />
       ) : (

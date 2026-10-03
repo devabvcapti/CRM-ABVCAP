@@ -20,11 +20,14 @@ export type ContactFormState = {
 };
 
 const contactCreateSchema = z.object({
-  full_name: z.string().min(1),
-  title: z.string().min(1),
-  email: z.string().min(1),
-  phone: z.string().min(1),
-  org_id: z.string().min(1),
+  full_name: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+  email: z.string().trim().min(1),
+  phone: z.string().trim().min(1),
+  // org_id é um uuid vindo de um <Select> (nunca digitado à mão), mas o
+  // `.trim()` aqui é só por consistência com os outros 4 campos — não muda
+  // comportamento nesse caso.
+  org_id: z.string().trim().min(1),
 });
 
 export type ContactCreateFormState = {
@@ -237,7 +240,16 @@ export async function addTagToContact(
 // catálogo, que continua disponível para outros contatos / re-anexação.
 export async function removeTagFromContact(entityTagId: string): Promise<{ error: boolean }> {
   const supabase = await createClient();
-  const { error } = await supabase.from("entity_tags").delete().eq("id", entityTagId);
+  // Guard-rail defensivo: o `.eq("entity_type", "contact")` não muda
+  // comportamento para nenhum chamador hoje (RLS já permite o delete dos
+  // dois jeitos) — só garante que esta Server Action, por ser contact-
+  // scoped, nunca apague por engano o vínculo de tag de uma organização
+  // mesmo que um bug futuro passe o id errado.
+  const { error } = await supabase
+    .from("entity_tags")
+    .delete()
+    .eq("id", entityTagId)
+    .eq("entity_type", "contact");
   if (error) return { error: true };
   revalidateContacts();
   return { error: false };

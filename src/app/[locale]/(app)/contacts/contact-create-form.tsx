@@ -75,7 +75,12 @@ export function ContactCreateForm({
             </Field>
             <Field>
               <FieldLabel htmlFor="email">{t("fieldEmail")}</FieldLabel>
-              <Input id="email" name="email" type="email" />
+              {/* type="text" (não "email"): o browser validaria o formato
+                  sozinho, sem tradução, antes do submit chegar na Server
+                  Action — mesmo raciocínio do comentário acima sobre não usar
+                  `required` nativo nos campos. `inputMode="email"` mantém o
+                  teclado numérico/@ no mobile sem acionar essa validação. */}
+              <Input id="email" name="email" type="text" inputMode="email" />
             </Field>
             <Field>
               <FieldLabel htmlFor="phone">{t("fieldPhone")}</FieldLabel>

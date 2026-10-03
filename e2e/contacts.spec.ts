@@ -252,21 +252,19 @@ test.describe("contatos", () => {
     }
   });
 
-  // Nota (Task 1): esta suíte testava "Cargo" (hoje `title`) e "Empresa"
-  // combinados em AND no filtro da lista. A dimensão de Cargo usava o campo
-  // livre de tags do cadastro rápido antigo (`#tags`) pra popular
-  // `tagsByContact`/`#contact-tag-filter` — esse campo não existe mais (Cargo
-  // virou `contacts.title`, um valor único, não uma tag) e, depois desta
-  // task, NENHUMA tela ainda escreve em `entity_tags` para contatos (o picker
-  // de Tags de verdade só chega na Task 2, no detalhe do contato) — não há
-  // como popular `#contact-tag-filter` com um valor novo e isolado por este
-  // teste. O teste foi reduzido para só o filtro de Empresa (dimensão que
-  // continua inalterada, via `organization_contacts`) combinado com a busca
-  // por nome — mantém a cobertura de "dois critérios em AND" e toda a parte
-  // de filtros salvos (duplicidade de nome, reaplicar, apagar). Revisitar a
-  // combinação com `#contact-tag-filter` quando a Task 2 (picker de Tags)
-  // estiver no ar.
-  test("filtro de empresa combina com a busca em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
+  // Nota (Task 1, revisitada após a Task 2): esta suíte testava "Cargo" (hoje
+  // `title`) e "Empresa" combinados em AND no filtro da lista. A dimensão de
+  // Cargo usava o campo livre de tags do cadastro rápido antigo (`#tags`)
+  // pra popular `tagsByContact`/`#contact-tag-filter` — esse campo não existe
+  // mais (Cargo virou `contacts.title`, um valor único, não uma tag) e, na
+  // época da Task 1, nenhuma tela ainda escrevia em `entity_tags` para
+  // contatos (o picker de Tags de verdade só chegou na Task 2, no detalhe do
+  // contato). O teste foi reduzido para só o filtro de Empresa, com a nota de
+  // revisitar a combinação com `#contact-tag-filter` quando o picker
+  // estivesse no ar. Ele está (ver `ContactTags`/`TagAddPicker` em
+  // `[id]/contact-tags.tsx`) — a dimensão de Tag é restaurada abaixo, usando
+  // o picker real pra anexar uma tag só a nameA antes do filtro combinado.
+  test("filtro de empresa combina com a busca em AND; filtro de tag combina com Empresa em AND; filtros salvos detectam nome duplicado e podem ser reaplicados/apagados", async ({
     page,
   }) => {
     const stamp = Date.now();
@@ -277,6 +275,13 @@ test.describe("contatos", () => {
     const orgName = `E2E Org For Contact Filters ${stamp}`;
     const otherOrgName = `E2E Org For Contact Filters Other ${stamp}`;
     const filterName = `E2E Filtro Contato ${stamp}`;
+    // Tag única pro teste de AND com `#contact-tag-filter` (mesmo padrão de
+    // nome com timestamp do teste do picker, "picker de Tags no detalhe" —
+    // só nameA recebe a tag, pra distinguir de nameC, que tem a MESMA Empresa
+    // mas nenhuma tag). Mesmo risco aceito daquele teste: não há tela de
+    // gestão de Tags no app, então a linha criada em `tags` fica órfã no
+    // banco de QA depois deste teste.
+    const tagName = `E2E Contact Filters Tag ${stamp}`;
 
     try {
       // orgName: critério de Empresa usado no filtro. otherOrgName: só
@@ -288,8 +293,10 @@ test.describe("contatos", () => {
       await createOrg(page, otherOrgName);
 
       // nameA/nameC: vínculo com orgName — batem o filtro de Empresa.
-      // nameB: vínculo com otherOrgName — não bate.
-      await createContactViaQuickForm(page, {
+      // nameB: vínculo com otherOrgName — não bate. Só nameA recebe a tag
+      // (abaixo), então nameA e nameC seguem distinguíveis mesmo com a mesma
+      // Empresa.
+      const urlA = await createContactViaQuickForm(page, {
         name: nameA,
         title: "Conselheiro",
         email: "contato-filters-a@example.com",
@@ -311,6 +318,18 @@ test.describe("contatos", () => {
         orgName,
       });
 
+      // Anexa a tag só a nameA via o picker real (ContactTags) — mesmo fluxo
+      // do teste "picker de Tags no detalhe": abre, digita o nome novo,
+      // escolhe a opção "criar". `addTagToContact` revalida a lista
+      // (`revalidateContacts`), então o próximo `page.goto(LIST_PATH)` já
+      // busca `tagsByContact` atualizado e popula `#contact-tag-filter` com
+      // `tagName`.
+      await page.goto(urlA);
+      await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await page.getByPlaceholder("Buscar ou criar tag…").fill(tagName);
+      await page.getByRole("option", { name: `Criar tag: "${tagName}"` }).click();
+      await expect(page.getByRole("button", { name: `Remover tag ${tagName}` })).toBeVisible();
+
       await page.goto(LIST_PATH);
       const searchInput = page.getByPlaceholder("Buscar por nome…");
       await searchInput.fill(prefix);
@@ -326,6 +345,25 @@ test.describe("contatos", () => {
       await page.getByRole("option", { name: orgName, exact: true }).click();
       await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
       await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
+
+      // Filtro de Tag (`#contact-tag-filter`) combinado com o filtro de
+      // Empresa já ativo (orgName), em AND — nameA e nameC têm a MESMA
+      // Empresa, mas só nameA tem `tagName`: com os dois filtros ativos,
+      // nameC precisa sumir (bate Empresa, não bate Tag) e nameA continuar
+      // visível (bate os dois). Prova que o filtro de Tag não é só um filtro
+      // isolado, mas combina em AND com outro critério já ativo.
+      await page.locator("#contact-tag-filter").click();
+      await page.getByRole("option", { name: tagName, exact: true }).click();
+      await expect(page.getByRole("cell", { name: nameA, exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: nameB, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("cell", { name: nameC, exact: true })).toHaveCount(0);
+
+      // Volta o filtro de Tag para "Todos" antes de seguir — os passos de
+      // filtro salvo abaixo capturam e reaplicam o estado atual (busca=prefix
+      // + empresa=orgName) e não devem incluir a Tag nessa combinação.
+      await page.locator("#contact-tag-filter").click();
+      await page.getByRole("option", { name: "Todos" }).click();
       await expect(page.getByRole("cell", { name: nameC, exact: true })).toBeVisible();
 
       // Step 4a: salva o filtro atual (busca=prefix + empresa=orgName) com
@@ -445,8 +483,13 @@ test.describe("contatos", () => {
       ).toBeVisible();
 
       // Reabre o picker: a tag recém-anexada não pode aparecer como opção
-      // (Review Focus — nunca oferecer uma tag já anexada).
+      // (Review Focus — nunca oferecer uma tag já anexada). Confirma
+      // primeiro que o picker de fato abriu (input de busca visível) antes
+      // do toHaveCount(0) — sem isso, a asserção de ausência passaria
+      // trivialmente mesmo que o listbox ainda nem tivesse renderizado,
+      // sem provar nada (achado do code review final).
       await page.getByRole("button", { name: "Adicionar tag" }).click();
+      await expect(page.getByPlaceholder("Buscar ou criar tag…")).toBeVisible();
       await expect(page.getByRole("option", { name: tagName })).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(page.getByRole("button", { name: "Adicionar tag" })).toBeVisible();
