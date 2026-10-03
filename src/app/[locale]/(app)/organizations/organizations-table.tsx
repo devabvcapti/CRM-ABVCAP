@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
-import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+import type { ColumnDef, PaginationState, SortingState, Updater } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
 import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header";
 import { EntityDataGrid } from "@/components/shared/entity-data-grid";
+import { useEntityListUrlState } from "@/components/shared/entity-list-url-state";
 import { SavedFiltersControl } from "@/components/shared/saved-filters-control";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Database } from "@/types/database";
@@ -23,7 +24,8 @@ import { ORG_TYPES, TIERS, STATUSES } from "./constants";
 type Organization = Database["crm_abvcap"]["Tables"]["organizations"]["Row"];
 
 // Shape exato do filter_state salvo em saved_filters para entity_type =
-// "organization" — reflete 1:1 os 5 useState abaixo (busca + 4 dropdowns).
+// "organization" — reflete 1:1 os campos de busca/filtro geridos pelo hook
+// `useEntityListUrlState` abaixo.
 export type OrganizationFilterState = {
   search?: string;
   orgType?: string;
@@ -32,20 +34,23 @@ export type OrganizationFilterState = {
   sector?: string;
 };
 
+// Referência estável (módulo, não recriado a cada render) — evita que o
+// useMemo interno de useEntityListUrlState recalcule por uma nova identidade
+// de array a cada render do componente.
+const ORGANIZATION_FILTER_KEYS: (keyof OrganizationFilterState & string)[] = [
+  "search",
+  "orgType",
+  "tier",
+  "status",
+  "sector",
+];
+
+const DEFAULT_SORT = "name";
+const SEARCH_DEBOUNCE_MS = 350;
+
 // Sentinela só de UI pro item "Todos" do Select — nunca aparece em
 // filter_state (lá, "sem filtro" é undefined, não essa string).
 const ALL_FILTER_VALUE = "__all__";
-
-// Mapeia o id da coluna (nem sempre igual ao nome do campo — "type" vs.
-// `org_type`) pro valor comparável — usado pela ordenação client-side do
-// shim de pagination/sorting (ver comentário no componente). Módulo, não
-// componente: referência estável, sem entrar em dependência de useMemo.
-const SORT_ACCESSORS: Record<string, (organization: Organization) => string> = {
-  name: (organization) => organization.name,
-  type: (organization) => organization.org_type,
-  tier: (organization) => organization.tier,
-  status: (organization) => organization.status,
-};
 
 function toPascalCase(value: string) {
   return value
@@ -56,9 +61,13 @@ function toPascalCase(value: string) {
 
 export function OrganizationsTable({
   organizations,
+  totalCount,
+  sectorOptions,
   savedFilters,
 }: {
   organizations: Organization[];
+  totalCount: number;
+  sectorOptions: string[];
   savedFilters: { id: string; name: string; filter_state: OrganizationFilterState }[];
 }) {
   const t = useTranslations("OrganizationsPage");
@@ -68,115 +77,119 @@ export function OrganizationsTable({
   // Nonce incrementado a cada abertura — ver ai-context/skills/08-testing-quality.md:
   // key por identidade não basta (duas criações seguidas cairiam na mesma key).
   const [formKey, setFormKey] = useState(0);
-  const [search, setSearch] = useState("");
-  const [orgTypeFilter, setOrgTypeFilter] = useState<string | undefined>(undefined);
-  const [tierFilter, setTierFilter] = useState<string | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [sectorFilter, setSectorFilter] = useState<string | undefined>(undefined);
-  // Temporário (Task 1): `EntityDataGrid` virou controlado — SEM modo dual
-  // (ver Global Constraint do plano) — e `manualPagination`/`manualSorting`
-  // agora são incondicionais pra todo consumidor. Isso significa que o
-  // TanStack não fatia nem ordena mais `data` sozinho: quem chama precisa
-  // entregar já fatiado/ordenado. Organizações ainda não migrou pra
-  // busca/filtro/paginação no servidor (Task 2, mesma frente), então
-  // `pagination`/`sorting` moram aqui como `useState` e a ordenação/corte
-  // client-side (`sortedOrganizations`/`paginatedOrganizations` abaixo)
-  // reimplementa à mão o que o TanStack fazia sozinho antes — mesmo
-  // comportamento de UX de antes, não mais "de graça" via row model
-  // automático. Task 2 substitui tudo isto por `useEntityListUrlState` +
-  // query no servidor.
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
+
+  const {
+    filterState,
+    page,
+    pageSize,
+    sort,
+    dir,
+    setFilterState,
+    setPage,
+    setPageSize,
+    setSorting,
+  } = useEntityListUrlState<OrganizationFilterState>(ORGANIZATION_FILTER_KEYS, {
+    sort: DEFAULT_SORT,
   });
-  const [sorting, setSorting] = useState<SortingState>([]);
 
-  const sectorOptions = useMemo(
-    () => Array.from(new Set(organizations.flatMap((o) => o.priority_sectors))).sort(),
-    [organizations],
-  );
+  // Busca com debounce (350ms) antes de navegar — o campo em si continua
+  // controlado localmente pro valor digitado aparecer sem atraso; só a
+  // NAVEGAÇÃO (e portanto a ida ao servidor) é adiada. Mesmo padrão de
+  // ContactsTable (Tarefa 1), inclusive a correção de corrida da busca
+  // debounced (ver 806cb60): o eco da navegação que o próprio componente
+  // disparou não pode sobrescrever teclas mais recentes digitadas enquanto
+  // essa navegação ainda estava em voo.
+  const [searchInput, setSearchInput] = useState(filterState.search ?? "");
+  // "Latest ref" só pro callback do debounce (abaixo) ler o filterState mais
+  // recente sem precisar reiniciar o timer a cada troca de tipo/tier/status/
+  // setor — mutação sempre dentro de efeito, nunca durante o render, e nunca
+  // LIDO durante o render tampouco (ver react-hooks/refs — a regra proíbe os
+  // dois).
+  const filterStateRef = useRef(filterState);
+  useEffect(() => {
+    filterStateRef.current = filterState;
+  }, [filterState]);
 
-  const currentFilterState: OrganizationFilterState = {
-    search,
-    orgType: orgTypeFilter,
-    tier: tierFilter,
-    status: statusFilter,
-    sector: sectorFilter,
-  };
+  // Último valor de busca "conhecido" (da URL) — estado, não ref, porque É
+  // lido durante o render (refs não podem). Distingue "a URL mudou porque a
+  // navegação que eu mesmo disparei (debounce) terminou" (não deve
+  // sobrescrever o campo: sob latência real, o usuário pode já ter digitado
+  // mais teclas enquanto essa navegação estava em voo) de "a URL mudou por
+  // outro motivo" (filtro salvo aplicado, navegação back/forward — aí sim
+  // precisa adotar o valor novo no campo). Atualizado em dois lugares, nenhum
+  // deles durante o render: otimisticamente no próprio debounce (abaixo, já
+  // dentro de um `setTimeout`) e reconciliado no bloco de ajuste de estado
+  // logo adiante (que roda durante o render, mas chamar um setState ali é o
+  // padrão sancionado pelo React para "estado derivado de uma prop que
+  // mudou" — diferente de mutar/ler um ref).
+  const [lastPushedSearch, setLastPushedSearch] = useState(filterState.search);
 
-  function applyFilterState(filterState: OrganizationFilterState) {
-    setSearch(filterState.search ?? "");
-    setOrgTypeFilter(filterState.orgType ?? undefined);
-    setTierFilter(filterState.tier ?? undefined);
-    setStatusFilter(filterState.status ?? undefined);
-    setSectorFilter(filterState.sector ?? undefined);
+  // Sincroniza o campo local quando filterState.search muda por fora — ajuste
+  // de estado durante o render (padrão recomendado pelo React pra "estado
+  // derivado de uma prop que mudou"), não um useEffect com setState síncrono,
+  // que dispararia re-renders em cascata.
+  const [syncedUrlSearch, setSyncedUrlSearch] = useState(filterState.search);
+  if (filterState.search !== syncedUrlSearch) {
+    setSyncedUrlSearch(filterState.search);
+    if (filterState.search !== lastPushedSearch) {
+      setSearchInput(filterState.search ?? "");
+    }
+    // Reconcilia independente da causa (eco do nosso próprio debounce ou
+    // mudança externa) — garante que a PRÓXIMA comparação acima sempre vale
+    // contra o valor certo, nunca contra um "último push" obsoleto.
+    setLastPushedSearch(filterState.search);
   }
 
-  // Filtro client-side sobre a lista já carregada — não é busca full-text no
-  // banco (isso fica para quando houver volume real de organizações que
-  // justifique). Os 4 critérios de dropdown combinam com a busca por nome em
-  // AND (cada `if` abaixo descarta a linha, nunca inclui) — Tipo/Tier/Status
-  // comparam por igualdade (valor único por organização), Setor por
-  // `.includes()` (array — uma organização pode ter vários setores
-  // prioritários).
-  // Memoizado: o efeito abaixo reseta a paginação pra página 1 sempre que a
-  // REFERÊNCIA deste array muda — sem useMemo aqui, um re-render do pai
-  // (ex.: abrir o Sheet de "Nova organização") recriava o array a cada vez,
-  // jogando o usuário de volta à página 1 mesmo sem a busca ter mudado.
-  const filteredOrganizations = useMemo(
-    () =>
-      organizations.filter((organization) => {
-        if (!organization.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
-        if (orgTypeFilter && organization.org_type !== orgTypeFilter) return false;
-        if (tierFilter && organization.tier !== tierFilter) return false;
-        if (statusFilter && organization.status !== statusFilter) return false;
-        if (sectorFilter && !organization.priority_sectors.includes(sectorFilter)) return false;
-        return true;
-      }),
-    [organizations, search, orgTypeFilter, tierFilter, statusFilter, sectorFilter],
-  );
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const current = filterStateRef.current;
+      if (searchInput !== (current.search ?? "")) {
+        const nextSearch = searchInput || undefined;
+        // Otimista: marca ANTES de navegar, pra quando o commit chegar (via
+        // re-render) já sabermos que foi um eco nosso, não uma mudança
+        // externa — sem isso, digitar mais enquanto a navegação está em voo
+        // faria o commit tardio sobrescrever o que o usuário já digitou por
+        // cima (ver comentário acima).
+        setLastPushedSearch(nextSearch);
+        setFilterState({ ...current, search: nextSearch });
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput, setFilterState]);
 
-  // `EntityDataGrid` é `manualSorting`/`manualPagination` incondicional (ver
-  // comentário do `useState` de pagination/sorting acima) — então a ordenação
-  // e o corte de página que o TanStack fazia sozinho em modo não-manual
-  // precisam ser feitos aqui, à mão, antes de entregar `data`.
-  const sortedOrganizations = useMemo(() => {
-    const sortState = sorting[0];
-    const accessor = sortState && SORT_ACCESSORS[sortState.id];
-    if (!sortState || !accessor) return filteredOrganizations;
-    const sorted = [...filteredOrganizations].sort((a, b) =>
-      accessor(a).localeCompare(accessor(b)),
-    );
-    return sortState.desc ? sorted.reverse() : sorted;
-  }, [filteredOrganizations, sorting]);
+  function updateFilter(key: keyof OrganizationFilterState, value: string | undefined) {
+    setFilterState({ ...filterState, [key]: value });
+  }
 
-  const paginatedOrganizations = useMemo(() => {
-    const start = pagination.pageIndex * pagination.pageSize;
-    return sortedOrganizations.slice(start, start + pagination.pageSize);
-  }, [sortedOrganizations, pagination]);
+  function handlePaginationChange(updater: Updater<PaginationState>) {
+    const current: PaginationState = { pageIndex: page - 1, pageSize };
+    const next = typeof updater === "function" ? updater(current) : updater;
+    if (next.pageSize !== current.pageSize) {
+      setPageSize(next.pageSize);
+    } else if (next.pageIndex !== current.pageIndex) {
+      setPage(next.pageIndex + 1);
+    }
+  }
 
-  // Mesmo comportamento de antes (ver comentário do `filteredOrganizations`
-  // acima): qualquer mudança no conjunto filtrado volta pra página 1 — sem
-  // isto, trocar um filtro enquanto numa página 2+ poderia deixar a grid
-  // numa página sem nenhuma linha (ou com linhas erradas), já que o reset
-  // automático que o TanStack fazia sozinho em modo não-manual não existe
-  // mais (`manualPagination: true`). Ajuste de estado durante o render
-  // (padrão recomendado pelo React pra "estado derivado de uma prop que
-  // mudou"), não um `useEffect` com `setState` síncrono — que dispararia
-  // re-renders em cascata.
-  const [syncedFilteredOrganizations, setSyncedFilteredOrganizations] = useState(filteredOrganizations);
-  if (filteredOrganizations !== syncedFilteredOrganizations) {
-    setSyncedFilteredOrganizations(filteredOrganizations);
-    if (pagination.pageIndex !== 0) {
-      setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+  function handleSortingChange(updater: Updater<SortingState>) {
+    const current: SortingState = [{ id: sort, desc: dir === "desc" }];
+    const next = typeof updater === "function" ? updater(current) : updater;
+    const nextSort = next[0];
+    if (!nextSort) {
+      setSorting(DEFAULT_SORT, "asc");
+    } else {
+      setSorting(nextSort.id, nextSort.desc ? "desc" : "asc");
     }
   }
 
   const columns = useMemo<ColumnDef<DataGridFeatures, Organization>[]>(
     () => [
       {
+        // Sem `id` explícito: o default do TanStack (= accessorKey) faz o id
+        // da coluna bater com o nome da coluna no banco ("name"), que é o
+        // mesmo valor trafegado em `sort`/`dir` pela URL (ver comentário
+        // equivalente em contacts-table.tsx).
         accessorKey: "name",
-        id: "name",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colName")} />
         ),
@@ -188,8 +201,11 @@ export function OrganizationsTable({
         ),
       },
       {
+        // Idem — sem `id` explícito, o id da coluna vira "org_type", batendo
+        // com a coluna real do banco (antes era "type", só a coluna de
+        // ordenação client-side do shim mapeava de volta — essa indireção
+        // não existe mais).
         accessorKey: "org_type",
-        id: "type",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colType")} />
         ),
@@ -198,7 +214,6 @@ export function OrganizationsTable({
       },
       {
         accessorKey: "tier",
-        id: "tier",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colTier")} />
         ),
@@ -207,7 +222,6 @@ export function OrganizationsTable({
       },
       {
         accessorKey: "status",
-        id: "status",
         header: ({ column }) => (
           <DataGridColumnHeader column={column} title={t("colStatus")} />
         ),
@@ -244,154 +258,148 @@ export function OrganizationsTable({
         </Button>
       </div>
 
-      {organizations.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("empty")}</p>
-      ) : (
-        <>
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="max-w-sm"
-          />
+      <Input
+        value={searchInput}
+        onChange={(event) => setSearchInput(event.target.value)}
+        placeholder={t("searchPlaceholder")}
+        className="max-w-sm"
+      />
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="org-type-filter">{t("filterTypeLabel")}</Label>
-              <Select
-                value={orgTypeFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setOrgTypeFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="org-type-filter">{t("filterTypeLabel")}</Label>
+          <Select
+            value={filterState.orgType ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("orgType", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="org-type-filter" className="w-44">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE
+                    ? t(`type${toPascalCase(value)}`)
+                    : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="org-type-filter" className="w-44">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE
-                        ? t(`type${toPascalCase(value)}`)
-                        : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {ORG_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {t(`type${toPascalCase(type)}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {ORG_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {t(`type${toPascalCase(type)}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="org-tier-filter">{t("filterTierLabel")}</Label>
-              <Select
-                value={tierFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setTierFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="org-tier-filter">{t("filterTierLabel")}</Label>
+          <Select
+            value={filterState.tier ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("tier", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="org-tier-filter" className="w-32">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="org-tier-filter" className="w-32">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {TIERS.map((tier) => (
-                    <SelectItem key={tier} value={tier}>
-                      {tier}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {TIERS.map((tier) => (
+                <SelectItem key={tier} value={tier}>
+                  {tier}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="org-status-filter">{t("filterStatusLabel")}</Label>
-              <Select
-                value={statusFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setStatusFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="org-status-filter">{t("filterStatusLabel")}</Label>
+          <Select
+            value={filterState.status ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("status", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="org-status-filter" className="w-36">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE
+                    ? t(`status${toPascalCase(value)}`)
+                    : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="org-status-filter" className="w-36">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE
-                        ? t(`status${toPascalCase(value)}`)
-                        : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {t(`status${toPascalCase(status)}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {t(`status${toPascalCase(status)}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="org-sector-filter">{t("filterSectorLabel")}</Label>
-              <Select
-                value={sectorFilter ?? ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  setSectorFilter(value && value !== ALL_FILTER_VALUE ? value : undefined)
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="org-sector-filter">{t("filterSectorLabel")}</Label>
+          <Select
+            value={filterState.sector ?? ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              updateFilter("sector", value && value !== ALL_FILTER_VALUE ? value : undefined)
+            }
+          >
+            <SelectTrigger id="org-sector-filter" className="w-44">
+              <SelectValue>
+                {(value: string | null) =>
+                  value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
                 }
-              >
-                <SelectTrigger id="org-sector-filter" className="w-44">
-                  <SelectValue>
-                    {(value: string | null) =>
-                      value && value !== ALL_FILTER_VALUE ? value : tSavedFilters("filterAllOption")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>
-                    {tSavedFilters("filterAllOption")}
-                  </SelectItem>
-                  {sectorOptions.map((sector) => (
-                    <SelectItem key={sector} value={sector}>
-                      {sector}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>
+                {tSavedFilters("filterAllOption")}
+              </SelectItem>
+              {sectorOptions.map((sector) => (
+                <SelectItem key={sector} value={sector}>
+                  {sector}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-          <SavedFiltersControl
-            entityType="organization"
-            savedFilters={savedFilters}
-            currentFilterState={currentFilterState}
-            onApply={applyFilterState}
-          />
+      <SavedFiltersControl
+        entityType="organization"
+        savedFilters={savedFilters}
+        currentFilterState={filterState}
+        onApply={setFilterState}
+      />
 
-          <EntityDataGrid
-            columns={columns}
-            data={paginatedOrganizations}
-            getRowId={(organization) => organization.id}
-            totalCount={filteredOrganizations.length}
-            pagination={pagination}
-            onPaginationChange={setPagination}
-            sorting={sorting}
-            onSortingChange={setSorting}
-          />
-        </>
-      )}
+      <EntityDataGrid
+        columns={columns}
+        data={organizations}
+        getRowId={(organization) => organization.id}
+        totalCount={totalCount}
+        pagination={{ pageIndex: page - 1, pageSize }}
+        onPaginationChange={handlePaginationChange}
+        sorting={[{ id: sort, desc: dir === "desc" }]}
+        onSortingChange={handleSortingChange}
+      />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <OrganizationForm key={formKey} onSaved={handleSaved} />

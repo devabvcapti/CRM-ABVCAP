@@ -132,15 +132,32 @@ test.describe("organizações", () => {
         };
       }
 
-      await nameColumnSortButton.click();
-      const firstOrder = await rowOrder();
-      expect(firstOrder.a).toBeGreaterThanOrEqual(0);
-      expect(firstOrder.b).toBeGreaterThanOrEqual(0);
+      // Ordenação roda no servidor agora (ida real, não mais instantânea no
+      // cliente) — um clique só reflete na tela depois da navegação/re-fetch
+      // completar, então espera a ordem relativa de A/B mudar em vez de ler
+      // `rowOrder()` logo após o `.click()` (mesmo fix de contacts.spec.ts,
+      // Tarefa 1, achado de review — ver 806cb60).
+      const initialOrder = await rowOrder();
+      expect(initialOrder.a).toBeGreaterThanOrEqual(0);
+      expect(initialOrder.b).toBeGreaterThanOrEqual(0);
 
       await nameColumnSortButton.click();
+      await expect
+        .poll(async () => {
+          const current = await rowOrder();
+          return current.a < current.b;
+        })
+        .toBe(!(initialOrder.a < initialOrder.b));
+      const firstOrder = await rowOrder();
+
+      await nameColumnSortButton.click();
+      await expect
+        .poll(async () => {
+          const current = await rowOrder();
+          return current.a < current.b;
+        })
+        .toBe(!(firstOrder.a < firstOrder.b));
       const secondOrder = await rowOrder();
-      expect(secondOrder.a).toBeGreaterThanOrEqual(0);
-      expect(secondOrder.b).toBeGreaterThanOrEqual(0);
 
       expect(secondOrder.a < secondOrder.b).toBe(!(firstOrder.a < firstOrder.b));
     } finally {
@@ -276,6 +293,116 @@ test.describe("organizações", () => {
       await deleteRowIfExists(page, LIST_PATH, nameA);
       await deleteRowIfExists(page, LIST_PATH, nameB);
       await deleteRowIfExists(page, LIST_PATH, nameC);
+    }
+  });
+
+  // Task 2 (busca/filtro/paginação no servidor, mesmo padrão de contacts.spec.ts
+  // Tarefa 1): prova que trocar um filtro reseta a paginação pra página 1,
+  // mesmo partindo de uma página 2+ — a paginação agora é de servidor
+  // (`useEntityListUrlState`/`page.tsx`), então sem este reset o usuário
+  // ficaria "preso" numa página que pode nem existir mais no conjunto
+  // filtrado.
+  test("mudar o filtro de Tipo a partir da página 2 volta pra página 1", async ({ page }) => {
+    // Pesado: 12 organizações criadas via UI + navegação de paginação + troca
+    // de filtro — mesmo motivo de test.setTimeout dos testes grandes de
+    // contacts.spec.ts (latência de leitura-após-escrita do Supabase
+    // hospedado em CI).
+    test.setTimeout(150_000);
+    const stamp = Date.now();
+    const prefix = `E2E Org Page1 ${stamp}`;
+    // Nomes zero-padded (01..12) pra ordem alfabética (string) bater com a
+    // ordem numérica — 11 organizações Tipo "Fundo de Private Equity"
+    // (`${prefix} 01`..`${prefix} 11`) e 1 Tipo "Fundo de Venture Capital"
+    // (`${prefix} 12`), 12 no total: 2 páginas de pageSize 10. Filtrar por
+    // Tipo PE remove só a 12ª (VC), ainda restando 11 (2 páginas) — a 01
+    // (alfabeticamente primeira do conjunto filtrado) só aparece na página 1.
+    const names = Array.from({ length: 12 }, (_, index) => `${prefix} ${String(index + 1).padStart(2, "0")}`);
+
+    try {
+      for (const name of names.slice(0, 11)) {
+        await page.goto(LIST_PATH);
+        await fillAndSubmitCreate(page, name, "Fundo de Private Equity");
+        await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      }
+      await page.goto(LIST_PATH);
+      await fillAndSubmitCreate(page, names[11], "Fundo de Venture Capital");
+      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+
+      await page.goto(LIST_PATH);
+      const searchInput = page.getByPlaceholder("Buscar por nome…");
+      await searchInput.fill(prefix);
+
+      // 12 resultados, ordenados por nome: página 1 mostra 01..10, página 2
+      // mostra 11 e 12.
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Ir para a página 2" }).click();
+      await expect(page.getByRole("cell", { name: names[10], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toHaveCount(0);
+
+      // Troca o filtro de Tipo a partir da página 2 — reduz pra 11 resultados
+      // (ainda 2 páginas), e a paginação precisa voltar pra página 1 sozinha:
+      // a 01 (só existe na página 1 do conjunto filtrado) fica visível sem
+      // precisar clicar em "1" de novo.
+      await page.locator("#org-type-filter").click();
+      await page.getByRole("option", { name: "Fundo de Private Equity" }).click();
+
+      await expect(page.getByRole("cell", { name: names[0], exact: true })).toBeVisible();
+      await expect(page.getByRole("cell", { name: names[11], exact: true })).toHaveCount(0);
+    } finally {
+      for (const name of names) {
+        await deleteRowIfExists(page, LIST_PATH, name);
+      }
+    }
+  });
+
+  // Task 2 (busca/filtro/paginação no servidor, mesmo padrão de contacts.spec.ts
+  // Tarefa 1): prova que as opções do dropdown de Setor vêm de um catálogo
+  // completo (query própria, nunca escopada à página já paginada/filtrada da
+  // lista). A organização com o setor único recebe um nome prefixado com
+  // "zzzzz" pra ordenar depois de qualquer organização pré-existente (ou das
+  // 10 organizações de "enchimento" criadas aqui) — garantindo que ela NUNCA
+  // cai na página 1 (pageSize 10, ordenado por nome) sem filtro nenhum
+  // aplicado: se as opções do dropdown tivessem vindo só da página 1
+  // carregada (bug que esta mudança de arquitetura poderia reintroduzir por
+  // engano), o setor novo não apareceria como opção.
+  test("dropdown de Setor lista o catálogo completo, não só a página carregada", async ({ page }) => {
+    test.setTimeout(150_000);
+    const stamp = Date.now();
+    const sector = `E2E Setor Catalog ${stamp}`;
+    const catalogOrgName = `zzzzz E2E Org Sector Catalog ${stamp}`;
+    const fillerNames = Array.from(
+      { length: 10 },
+      (_, index) => `E2E Org Sector Filler ${stamp} ${String(index + 1).padStart(2, "0")}`,
+    );
+
+    try {
+      for (const name of fillerNames) {
+        await page.goto(LIST_PATH);
+        await fillAndSubmitCreate(page, name);
+        await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      }
+
+      await page.goto(LIST_PATH);
+      await fillAndSubmitCreate(page, catalogOrgName);
+      await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/);
+      await editStatusAndSector(page, { sector });
+
+      // Sem nenhum filtro aplicado — a lista mostra a página 1 do catálogo
+      // inteiro de Organizações (ordenado por nome), que não inclui a
+      // organização "zzzzz..." (ordena depois das 10 de enchimento, e de
+      // qualquer organização pré-existente).
+      await page.goto(LIST_PATH);
+      await expect(page.getByRole("cell", { name: catalogOrgName, exact: true })).toHaveCount(0);
+      await page.locator("#org-sector-filter").click();
+      await expect(page.getByRole("option", { name: sector, exact: true })).toBeVisible();
+    } finally {
+      for (const name of fillerNames) {
+        await deleteRowIfExists(page, LIST_PATH, name);
+      }
+      await deleteRowIfExists(page, LIST_PATH, catalogOrgName);
     }
   });
 });
