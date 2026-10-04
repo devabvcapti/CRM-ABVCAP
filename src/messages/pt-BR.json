@@ -26,6 +26,7 @@
     "navDashboard": "Dashboard",
     "navOrganizations": "Organizações",
     "navContacts": "Contatos",
+    "navTasks": "Tarefas",
     "logout": "Sair"
   },
   "ContactsPage": {
@@ -125,7 +126,13 @@
     "errorRequiredAssignedTo": "Selecione quem está atribuída.",
     "errorGeneric": "Não foi possível salvar. Tente novamente.",
     "deleteConfirm": "Tem certeza que deseja excluir esta tarefa?",
-    "deleteLabel": "Excluir tarefa {description}"
+    "deleteLabel": "Excluir tarefa {description}",
+    "columnAFazer": "A Fazer",
+    "columnEmAndamento": "Em Andamento",
+    "columnConcluida": "Concluída",
+    "onlyMineToggle": "Minhas tarefas",
+    "urgencyOverdue": "Atrasada",
+    "urgencyDueSoon": "Vence em breve"
   },
   "OrganizationsPage": {
     "title": "Organizações",

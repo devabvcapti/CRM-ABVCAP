@@ -137,7 +137,17 @@ export async function deleteRowIfExists(page: Page, listPath: string, name: stri
 
     await row.getByRole("link", { name }).click();
     page.once("dialog", (dialog) => dialog.accept());
-    await forceClick(page.getByRole("button", { name: "Excluir" }));
+    // `exact: true` necessário: sem ele, o botão de excluir do Contato/
+    // Organização ("Excluir") casa por substring com qualquer botão de
+    // excluir tarefa ("Excluir tarefa {description}") que o detalhe também
+    // renderize (TasksList embutida) — uma tarefa pendente na hora da
+    // limpeza vira "strict mode violation" (2+ elementos), achado ao
+    // escrever o quadro Kanban de Tarefas, que deixa tarefas de teste
+    // linkadas a um Contato/Organização até o fim do cenário. Mesma
+    // desambiguação já usada localmente em tasks.spec.ts/organization-
+    // contact-links.spec.ts; promovida pra cá por ser o fallback
+    // compartilhado.
+    await forceClick(page.getByRole("button", { name: "Excluir", exact: true }));
   } catch (error) {
     // Best-effort de verdade — ver comentário acima. Dado órfão de um teste
     // falho fica para limpeza manual, não derruba a suíte — mas o warn

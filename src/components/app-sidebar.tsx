@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { LayoutDashboardIcon, Building2Icon, UsersIcon, LogOutIcon } from "lucide-react";
+import { LayoutDashboardIcon, Building2Icon, UsersIcon, ListTodoIcon, LogOutIcon } from "lucide-react";
 import { Link, usePathname } from "@/i18n/navigation";
 import {
   Sidebar,
@@ -18,7 +18,7 @@ import {
 import { logout } from "@/app/[locale]/login/actions";
 
 type NavItem = {
-  href: "/dashboard" | "/organizations" | "/contacts";
+  href: "/dashboard" | "/organizations" | "/contacts" | "/tasks";
   label: string;
   icon: React.ReactNode;
 };
@@ -30,7 +30,7 @@ export function AppSidebar({
   logoutLabel,
 }: {
   locale: string;
-  navLabels: { dashboard: string; organizations: string; contacts: string };
+  navLabels: { dashboard: string; organizations: string; contacts: string; tasks: string };
   profileName: string;
   logoutLabel: string;
 }) {
@@ -51,6 +51,11 @@ export function AppSidebar({
       href: "/organizations",
       label: navLabels.organizations,
       icon: <Building2Icon aria-hidden="true" />,
+    },
+    {
+      href: "/tasks",
+      label: navLabels.tasks,
+      icon: <ListTodoIcon aria-hidden="true" />,
     },
   ];
 
