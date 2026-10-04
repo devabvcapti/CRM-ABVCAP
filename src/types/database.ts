@@ -518,6 +518,7 @@ export type Database = {
           organization_id: string
           participant_id: string
           participant_type: string
+          status: string
           updated_at: string
         }
         Insert: {
@@ -531,6 +532,7 @@ export type Database = {
           organization_id?: string
           participant_id: string
           participant_type: string
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -544,6 +546,7 @@ export type Database = {
           organization_id?: string
           participant_id?: string
           participant_type?: string
+          status?: string
           updated_at?: string
         }
         Relationships: [
