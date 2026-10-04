@@ -506,6 +506,63 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assigned_to: string
+          created_at: string
+          created_by: string | null
+          description: string
+          done_at: string | null
+          due_date: string
+          id: string
+          organization_id: string
+          participant_id: string
+          participant_type: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          done_at?: string | null
+          due_date: string
+          id?: string
+          organization_id?: string
+          participant_id: string
+          participant_type: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          done_at?: string | null
+          due_date?: string
+          id?: string
+          organization_id?: string
+          participant_id?: string
+          participant_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           auth_id: string

@@ -17,6 +17,19 @@ export async function cleanupPolymorphicReferences(
     .eq("entity_type", entityType)
     .eq("entity_id", entityId);
 
+  // tasks.participant_id é polimórfico pelo mesmo motivo de entity_tags
+  // acima (0008_crm_tasks.sql) — mas, ao contrário de
+  // interaction_participants, não precisa de RPC SECURITY DEFINER: a
+  // policy de SELECT de tasks é `using (true)` (sem filtro de
+  // classificação/grant que pudesse esconder uma linha do DELETE em
+  // lote), então um .delete() comum já enxerga e apaga tudo que a policy
+  // de DELETE também enxerga.
+  await supabase
+    .from("tasks")
+    .delete()
+    .eq("participant_type", entityType)
+    .eq("participant_id", entityId);
+
   // A policy de SELECT de interaction_participants é filtrada por
   // classification_level/has_grant da interaction, mas as policies de DELETE
   // são só por papel (admin/gestor/analista), sem checar classificação — um
