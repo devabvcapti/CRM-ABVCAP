@@ -23,10 +23,12 @@ async function createOrg(page: Page, orgName: string) {
 }
 
 // Preenche e envia o AddTaskForm (TasksList, Task 2) na página de detalhe
-// (Contato OU Organização — mesmo form nas duas) já aberta. "QA" é o nome do
-// perfil logado por loginAsQa (qa@abvcap.com.br) — precisa aparecer como
-// opção do <Select> de "Atribuída a" (ver assignableProfiles, sem filtro de
-// papel).
+// (Contato OU Organização — mesmo form nas duas) já aberta. "QA Playwright"
+// é o nome real (user_profiles.name) do perfil logado por loginAsQa
+// (qa@abvcap.com.br) — precisa aparecer como opção do <Select> de
+// "Atribuída a" (ver assignableProfiles, sem filtro de papel). Confirmado
+// contra o banco real, não assumido (ver nota do controller no final fix
+// wave desta branch — o nome presumido "QA" nunca existiu).
 async function createTask(page: Page, description: string) {
   const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const dueDateLocal = new Date(dueDate.getTime() - dueDate.getTimezoneOffset() * 60000)
@@ -40,7 +42,7 @@ async function createTask(page: Page, description: string) {
   // Playwright é substring case-insensitive, então também casaria com
   // qualquer outro perfil cujo nome contenha "qa" (improvável hoje, mas
   // barato de tornar robusto).
-  await page.getByRole("option", { name: "QA", exact: true }).click();
+  await page.getByRole("option", { name: "QA Playwright", exact: true }).click();
   await page.getByRole("button", { name: "Adicionar tarefa" }).click();
 }
 
