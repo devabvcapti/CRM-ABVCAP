@@ -111,6 +111,22 @@
     "classificationConfidential": "Confidencial",
     "classificationRestricted": "Restrito"
   },
+  "TasksList": {
+    "title": "Tarefas",
+    "empty": "Nenhuma tarefa cadastrada ainda.",
+    "fieldDescription": "Descrição",
+    "fieldDueDate": "Data limite",
+    "fieldAssignedTo": "Atribuída a",
+    "selectPlaceholder": "Selecione",
+    "add": "Adicionar tarefa",
+    "submitting": "Salvando…",
+    "errorRequiredDescription": "Informe a descrição.",
+    "errorRequiredDueDate": "Informe a data limite.",
+    "errorRequiredAssignedTo": "Selecione quem está atribuída.",
+    "errorGeneric": "Não foi possível salvar. Tente novamente.",
+    "deleteConfirm": "Tem certeza que deseja excluir esta tarefa?",
+    "deleteLabel": "Excluir tarefa {description}"
+  },
   "OrganizationsPage": {
     "title": "Organizações",
     "newButton": "Nova organização",
