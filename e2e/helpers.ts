@@ -25,12 +25,25 @@ export async function forceClick(locator: ReturnType<Page["getByRole"]>) {
 
 // Filtra a lista (Contatos ou Organizações, mesmo placeholder nas duas) pelo
 // nome antes de qualquer lookup de linha/célula/link por nome — a lista
-// pagina client-side (EntityDataGrid, pageSize 10, ordenada por nome), então
-// sem o filtro um lookup na lista SEM filtro pode simplesmente não encontrar
-// a linha se ela caiu numa página 2+ (silenciosamente, sem falhar o teste de
-// um jeito óbvio). Ver ai-context/skills/08-testing-quality.md.
+// pagina no SERVIDOR (ver docs/superpowers/specs/2026-10-03-server-side-list-
+// pagination-design.md), então sem o filtro um lookup na lista SEM filtro
+// pode simplesmente não encontrar a linha se ela caiu numa página 2+
+// (silenciosamente, sem falhar o teste de um jeito óbvio). Ver
+// ai-context/skills/08-testing-quality.md.
+//
+// A busca tem debounce de 350ms antes de navegar (`?search=...`) — só depois
+// dessa navegação o servidor refaz a query filtrada. `fill()` sozinho
+// retorna antes do debounce disparar, então espera a URL carregar o
+// parâmetro `search` com o valor exato (codificado como
+// `URLSearchParams` codifica — espaço vira `+`, não `%20`) antes de devolver
+// o controle pra quem chama; sem isso, um `.count()`/asserção de ausência
+// logo em seguida podia ler a página ainda não filtrada e concluir "não
+// existe" por engano (achado do code review final da branch).
 export async function filterList(page: Page, name: string) {
   await page.getByPlaceholder("Buscar por nome…").fill(name);
+  const encodedParam = new URLSearchParams({ search: name }).toString();
+  const escaped = encodedParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  await expect(page).toHaveURL(new RegExp(`[?&]${escaped}(&|$)`));
 }
 
 // Cadastro rápido de Contato (ContactCreateForm, Task 1 — Cargo virou campo
@@ -90,7 +103,26 @@ export async function deleteRowIfExists(page: Page, listPath: string, name: stri
     await page.goto(listPath);
     await filterList(page, name);
     const row = page.getByRole("row", { name });
-    if ((await row.count()) === 0) return;
+    // `expect(...).not.toHaveCount(0)` é retryable (Playwright reavalia até
+    // o timeout) — ao contrário de um `row.count()` síncrono, que podia ler
+    // a lista um instante antes do servidor terminar de aplicar o filtro
+    // (URL já confirmada por `filterList`, mas o refetch/render ainda em
+    // voo) e concluir "0 linhas" por engano, fazendo a limpeza silenciosamente
+    // não apagar nada (achado do code review final da branch). Timeout
+    // explícito mais curto que o default (5s) — `filterList` já esperou a
+    // URL carregar o parâmetro, então o que falta aqui é só o
+    // refetch/render do servidor terminar (normalmente sub-segundo); um
+    // teste com vários `deleteRowIfExists` no `finally`, a maioria limpando
+    // linhas que já não existem (caminho feliz), não deveria pagar o
+    // timeout cheio em cada uma. Se a linha genuinamente não existir, a
+    // asserção esgota esse timeout e cai aqui — sem propagar pro catch
+    // externo (que logaria um warning de falha de limpeza indevido para o
+    // caso normal de "nada a limpar").
+    try {
+      await expect(row).not.toHaveCount(0, { timeout: 3_000 });
+    } catch {
+      return;
+    }
 
     // Nem Contatos nem Organizações têm mais "Excluir" inline na linha desde a
     // reestruturação Lista→Detalhe→Editar (fica só no detalhe, ver

@@ -102,6 +102,13 @@ export function EntityDataGrid<TData extends object>({
     getRowId,
     manualPagination: true,
     manualSorting: true,
+    // Sem isso, shift-click num segundo cabeçalho de coluna ativaria o
+    // multi-sort default do TanStack — um no-op silencioso aqui, já que
+    // `onSortingChange` (ver contacts-table.tsx/organizations-table.tsx) só
+    // olha pra `next[0]`. Desligado explicitamente pra shift-click se
+    // comportar como um clique normal (ordena só pela coluna clicada), em
+    // vez de não fazer nada sem explicação.
+    enableMultiSort: false,
     pageCount: Math.max(1, Math.ceil(totalCount / pagination.pageSize)),
     state: {
       pagination,

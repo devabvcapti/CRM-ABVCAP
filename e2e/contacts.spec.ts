@@ -588,40 +588,50 @@ test.describe("contatos", () => {
     }
   });
 
-  // Task 1 (busca/filtro/paginação no servidor): prova que as opções do
-  // dropdown de Empresa vêm de um catálogo completo (query própria, nunca
-  // escopada aos dados já paginados/filtrados da lista) — 11 contatos novos
-  // (mais que 1 página) numa Empresa nova, sem aplicar nenhum filtro na
-  // lista: se as opções do dropdown tivessem vindo só da página 1 carregada
-  // (bug que esta mudança de arquitetura poderia reintroduzir por engano),
-  // a Empresa nova poderia não aparecer como opção.
+  // Task 1 (busca/filtro/paginação no servidor), reescrito no fix wave final
+  // de review (achado: a versão original provava a ausência dos 11 contatos
+  // novos na página 1 só por sorte de ordenação alfabética — nunca havia uma
+  // asserção de ausência de verdade, então a prova era vazia por construção).
+  // Mesmo defeito já corrigido no equivalente de Organizações ("dropdown de
+  // Setor lista o catálogo completo", commit 169bc18) — aqui a exclusão
+  // determinística é por BUSCA (não por Tipo, que Contatos não tem): busca
+  // por um termo que não aparece no nome do contato criado, então ele some
+  // da lista visível POR CONSTRUÇÃO (`ilike` não bate), nunca por volume de
+  // dados/ordenação. `queryCompanyOptions` (page.tsx) não aplica esse
+  // filtro (nem nenhum outro) — catálogo incondicional — então a Empresa
+  // dele precisa aparecer no dropdown mesmo assim: se as opções do dropdown
+  // tivessem vindo só do conjunto filtrado/paginado (bug que esta mudança de
+  // arquitetura poderia reintroduzir por engano), a Empresa nova não
+  // apareceria como opção. Um contato só já basta (mesma simplificação do
+  // equivalente em Organizações — sem linhas de preenchimento).
   test("dropdown de Empresa lista o catálogo completo, não só a página carregada", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(90_000);
     const stamp = Date.now();
     const orgName = `E2E Org For Contact Dropdown Catalog ${stamp}`;
-    const names = Array.from({ length: 11 }, (_, index) => `E2E Contact Dropdown ${stamp} ${String(index + 1).padStart(2, "0")}`);
+    const name = `E2E Contact Dropdown Catalog ${stamp}`;
+    const unmatchedSearch = `E2E Contact Dropdown NoMatch ${stamp}`;
 
     try {
       await createOrg(page, orgName);
-      for (const name of names) {
-        await createContactViaQuickForm(page, {
-          name,
-          title: "Conselheiro",
-          email: "contato-dropdown@example.com",
-          phone: "11999990000",
-          orgName,
-        });
-      }
+      await createContactViaQuickForm(page, {
+        name,
+        title: "Conselheiro",
+        email: "contato-dropdown@example.com",
+        phone: "11999990000",
+        orgName,
+      });
 
-      // Sem nenhum filtro aplicado — a lista mostra a página 1 do catálogo
-      // inteiro de Contatos (não escopada a estes 11 criados agora).
       await page.goto(LIST_PATH);
+      // Busca por um termo que não bate no nome do contato criado — ele
+      // some da lista visível por construção, independente de paginação,
+      // volume de dados ou ordem alfabética.
+      await filterList(page, unmatchedSearch);
+      await expect(page.getByRole("cell", { name, exact: true })).toHaveCount(0);
+
       await page.locator("#contact-company-filter").click();
       await expect(page.getByRole("option", { name: orgName, exact: true })).toBeVisible();
     } finally {
-      for (const name of names) {
-        await deleteRowIfExists(page, LIST_PATH, name);
-      }
+      await deleteRowIfExists(page, LIST_PATH, name);
       await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });
