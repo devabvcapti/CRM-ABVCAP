@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsQa, deleteRowIfExists, createContactViaQuickForm } from "./helpers";
+import { createClient } from "@supabase/supabase-js";
+import { loginAsQa, deleteRowIfExists, createContactViaQuickForm, QA_EMAIL, QA_PASSWORD } from "./helpers";
 
 const CONTACT_LIST_PATH = "/pt-BR/contacts";
 const ORG_LIST_PATH = "/pt-BR/organizations";
@@ -35,7 +36,11 @@ async function createTask(page: Page, description: string) {
   await page.locator("#description").fill(description);
   await page.locator("#due_date").fill(dueDateLocal);
   await page.locator("#assigned_to").click();
-  await page.getByRole("option", { name: "QA" }).click();
+  // exact: true — sem isso, a correspondência por nome acessível de
+  // Playwright é substring case-insensitive, então também casaria com
+  // qualquer outro perfil cujo nome contenha "qa" (improvável hoje, mas
+  // barato de tornar robusto).
+  await page.getByRole("option", { name: "QA", exact: true }).click();
   await page.getByRole("button", { name: "Adicionar tarefa" }).click();
 }
 
@@ -136,22 +141,25 @@ test.describe("tarefas", () => {
     try {
       await createOrg(page, orgName);
 
-      await createContactViaQuickForm(page, {
+      const contactUrl = await createContactViaQuickForm(page, {
         name: contactName,
         title: "Diretor",
         email: `e2e.task.cleanup.${stamp}@example.com`,
         phone: "11999990001",
         orgName,
       });
+      // tasks.participant_id não tem FK real pra contacts.id (polimórfico,
+      // por design — ver spec). Precisamos do uuid do contato pra
+      // consultar `tasks` depois do delete; a URL do detalhe já contém.
+      const contactIdMatch = contactUrl.match(/\/contacts\/([0-9a-f-]+)$/);
+      if (!contactIdMatch) throw new Error(`não extraiu o id do contato de ${contactUrl}`);
+      const contactId = contactIdMatch[1];
 
       await createTask(page, description);
       await expect(page.getByRole("listitem").filter({ hasText: description })).toBeVisible();
 
       // Exclui o contato a partir do detalhe (fluxo já existente de
-      // ContactEditDelete/handleDelete) com a tarefa ainda pendente — a
-      // prova indireta de que não ficou linha órfã em `tasks` é a própria
-      // exclusão do contato não falhar/travar (cleanupPolymorphicReferences
-      // precisa cobrir `tasks` igual já cobre entity_tags/interaction_participants).
+      // ContactEditDelete/handleDelete) com a tarefa ainda pendente.
       // `exact: true` necessário aqui: sem ele, "Excluir" (botão de excluir
       // o Contato) também casa por substring com o aria-label do botão de
       // lixeira da tarefa ("Excluir tarefa {description}") — agora que a
@@ -162,6 +170,34 @@ test.describe("tarefas", () => {
       page.once("dialog", (dialog) => dialog.accept());
       await page.getByRole("button", { name: "Excluir", exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`${CONTACT_LIST_PATH}$`));
+
+      // O delete do contato ter sucedido e redirecionado NÃO prova que a
+      // tarefa órfã foi limpa — tasks.participant_id é polimórfico, sem FK
+      // pra contacts.id, então o delete do contato teria o mesmo
+      // resultado (sucesso + redirect) tanto se cleanupPolymorphicReferences
+      // limpou `tasks` quanto se essa limpeza estivesse silenciosamente
+      // quebrada (ex.: alguém removesse a linha de `tasks` desse helper).
+      // Confirmação direta: consulta `tasks` via client Node-side
+      // (@supabase/supabase-js puro, não o @supabase/ssr do browser) —
+      // zero linhas restantes para esse contactId prova a limpeza de
+      // verdade, não é mais evidência indireta.
+      const client = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { db: { schema: "crm_abvcap" } },
+      );
+      try {
+        await client.auth.signInWithPassword({ email: QA_EMAIL, password: QA_PASSWORD });
+        const { data, error } = await client
+          .from("tasks")
+          .select("id")
+          .eq("participant_type", "contact")
+          .eq("participant_id", contactId);
+        expect(error).toBeNull();
+        expect(data).toHaveLength(0);
+      } finally {
+        await client.auth.signOut();
+      }
     } finally {
       await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
       await deleteRowIfExists(page, ORG_LIST_PATH, orgName);

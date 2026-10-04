@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createTask, toggleTaskDone, deleteTask, type TaskFormState } from "@/lib/actions/tasks";
+import { createTask, setTaskDone, deleteTask, type TaskFormState } from "@/lib/actions/tasks";
 
 export type TaskRow = {
   id: string;
@@ -151,9 +151,13 @@ export function TasksList({
   });
 
   // Ação simples sem campos de form — chamada direta, sem useActionState
-  // (mesmo padrão de handleRemove em ContactTags).
-  async function handleToggle(taskId: string) {
-    const { error } = await toggleTaskDone(taskId);
+  // (mesmo padrão de handleRemove em ContactTags). O cliente envia seu
+  // próprio estado-alvo pretendido (não pede pro servidor inverter um
+  // valor desconhecido) — é isso que torna edições concorrentes
+  // consistentes: cada clique declara a intenção real, e a última
+  // escrita vence, em vez de dois toggles poderem se cancelar.
+  async function handleToggle(taskId: string, done: boolean) {
+    const { error } = await setTaskDone(taskId, done);
     if (error) window.alert(t("errorGeneric"));
   }
 
@@ -176,7 +180,7 @@ export function TasksList({
               <Checkbox
                 className="mt-0.5"
                 checked={Boolean(task.done_at)}
-                onCheckedChange={() => handleToggle(task.id)}
+                onCheckedChange={() => handleToggle(task.id, !task.done_at)}
                 aria-label={task.description}
               />
               <div className="flex flex-1 flex-col gap-1">

@@ -66,47 +66,56 @@ export async function createTask(
   return { error: null, success: true };
 }
 
-// Alterna done_at (null -> now(), now() -> null) — nunca recebe o
-// valor-alvo do chamador: lê o estado atual antes de inverter, pra um
-// clique duplo/atrasado do cliente nunca sobrescrever uma conclusão (ou
-// reabertura) feita por outra aba/usuário entre a leitura do cliente e o
-// clique.
-export async function toggleTaskDone(taskId: string): Promise<{ error: boolean }> {
+// Grava done_at no valor-alvo que o CHAMADOR decidiu (não inverte um
+// estado lido do banco) — idempotente: duas chamadas com o mesmo `done`
+// convergem pro mesmo resultado, nunca se cancelam. Um toggle que lê
+// done_at e inverte (desenho original) faz o OPOSTO do que a Review Focus
+// pedia: se a aba de outro usuário já concluiu a tarefa, esta aba (ainda
+// mostrando pendente) ao "concluir" leria done=true e inverteria de volta
+// pra pendente, reabrindo silenciosamente o que o outro acabou de
+// concluir. Com o alvo explícito, cada clique declara sua intenção real e
+// a última escrita vence (last-write-wins padrão), sem cancelamento.
+//
+// `.update(...).select(...).single()` retorna erro (PGRST116, "0 rows")
+// quando RLS filtra a linha do UPDATE (ex.: papel sem permissão) — o
+// mesmo caminho de erro "tarefa não encontrada" cobre as duas causas sem
+// round-trip extra, e elimina o SELECT prévio que a versão anterior
+// precisava (ineficiência já apontada na review do Task 1).
+export async function setTaskDone(taskId: string, done: boolean): Promise<{ error: boolean }> {
   const supabase = await createClient();
 
-  const { data: task, error: selectError } = await supabase
+  const { data: task, error } = await supabase
     .from("tasks")
-    .select("done_at, participant_type")
+    .update({ done_at: done ? new Date().toISOString() : null })
     .eq("id", taskId)
+    .select("participant_type")
     .single();
 
-  if (selectError || !task) return { error: true };
-
-  const { error: updateError } = await supabase
-    .from("tasks")
-    .update({ done_at: task.done_at ? null : new Date().toISOString() })
-    .eq("id", taskId);
-
-  if (updateError) return { error: true };
+  if (error || !task) return { error: true };
 
   revalidateParticipant(task.participant_type as ParticipantType);
   return { error: false };
 }
 
+// Mesma técnica de setTaskDone: delete-com-select-single detecta um
+// DELETE bloqueado por RLS (ex.: papel analista, que pode concluir
+// tarefas mas não está em tasks_delete_manager — só admin+gestor) como
+// erro, em vez de PostgREST silenciosamente excluir 0 linhas e devolver
+// sucesso vazio. Sem isso, o usuário clica na lixeira, confirma o
+// window.confirm, e nada acontece — sem alerta, sem feedback, tarefa
+// ainda lá. Também elimina o SELECT prévio da versão anterior (mesmo
+// ganho de eficiência de setTaskDone).
 export async function deleteTask(taskId: string): Promise<{ error: boolean }> {
   const supabase = await createClient();
 
-  const { data: task, error: selectError } = await supabase
+  const { data: task, error } = await supabase
     .from("tasks")
-    .select("participant_type")
+    .delete()
     .eq("id", taskId)
+    .select("participant_type")
     .single();
 
-  if (selectError || !task) return { error: true };
-
-  const { error: deleteError } = await supabase.from("tasks").delete().eq("id", taskId);
-
-  if (deleteError) return { error: true };
+  if (error || !task) return { error: true };
 
   revalidateParticipant(task.participant_type as ParticipantType);
   return { error: false };
