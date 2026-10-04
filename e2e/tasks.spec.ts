@@ -152,8 +152,15 @@ test.describe("tarefas", () => {
       // prova indireta de que não ficou linha órfã em `tasks` é a própria
       // exclusão do contato não falhar/travar (cleanupPolymorphicReferences
       // precisa cobrir `tasks` igual já cobre entity_tags/interaction_participants).
+      // `exact: true` necessário aqui: sem ele, "Excluir" (botão de excluir
+      // o Contato) também casa por substring com o aria-label do botão de
+      // lixeira da tarefa ("Excluir tarefa {description}") — agora que a
+      // tarefa criada acima deixa essa segunda linha "Excluir" na página,
+      // o locator sem `exact` resolve pra 2 elementos (strict mode
+      // violation). Mesmo padrão de desambiguação já usado em
+      // organization-contact-links.spec.ts.
       page.once("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: "Excluir" }).click();
+      await page.getByRole("button", { name: "Excluir", exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`${CONTACT_LIST_PATH}$`));
     } finally {
       await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
