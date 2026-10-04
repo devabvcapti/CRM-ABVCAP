@@ -23,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           dashboard: t("navDashboard"),
           organizations: t("navOrganizations"),
           contacts: t("navContacts"),
+          tasks: t("navTasks"),
         }}
         profileName={profile?.name ?? ""}
         logoutLabel={t("logout")}

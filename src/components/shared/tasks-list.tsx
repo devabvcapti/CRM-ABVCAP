@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createTask, setTaskDone, deleteTask, type TaskFormState } from "@/lib/actions/tasks";
+import { createTask, setTaskStatus, deleteTask, type TaskFormState } from "@/lib/actions/tasks";
 
 export type TaskRow = {
   id: string;
@@ -157,7 +157,7 @@ export function TasksList({
   // consistentes: cada clique declara a intenção real, e a última
   // escrita vence, em vez de dois toggles poderem se cancelar.
   async function handleToggle(taskId: string, done: boolean) {
-    const { error } = await setTaskDone(taskId, done);
+    const { error } = await setTaskStatus(taskId, done ? "concluida" : "a_fazer");
     if (error) window.alert(t("errorGeneric"));
   }
 

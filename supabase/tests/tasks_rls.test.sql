@@ -6,7 +6,7 @@
 -- contacts). Rodar: ver nota em organizations_rls.test.sql sobre
 -- `supabase test db` exigir Docker (indisponível neste ambiente).
 begin;
-select plan(7);
+select plan(8);
 
 -- Fixtures: usuários de teste SEM senha (não logam de verdade, só para RLS
 -- via request.jwt.claim.sub) — nunca usar para um login real.
@@ -106,6 +106,24 @@ select throws_ok(
   '23514',
   null,
   'insert com participant_type inválido falha no check constraint'
+);
+
+-- 8. insert com status fora de ('a_fazer', 'em_andamento', 'concluida')
+-- falha no check constraint (23514) adicionado em 0009_crm_tasks_status.sql
+-- — mesmo padrão do caso 7 acima para participant_type.
+select throws_ok(
+  $$insert into crm_abvcap.tasks (participant_type, participant_id, description, due_date, assigned_to, status)
+    values (
+      'contact',
+      (select id from crm_abvcap.contacts where full_name = 'RLS Test Task Contact'),
+      'Tarefa Status Inválido',
+      now() + interval '1 day',
+      (select id from crm_abvcap.user_profiles where auth_id = 'a0000000-0000-0000-0000-00000000c002'),
+      'invalido'
+    )$$,
+  '23514',
+  null,
+  'insert com status inválido falha no check constraint'
 );
 
 select * from finish();
