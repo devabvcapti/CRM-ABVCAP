@@ -421,4 +421,221 @@ test.describe("quadro Kanban de Tarefas", () => {
       await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
     }
   });
+
+  test("reordenar tarefa dentro da MESMA coluna não reseta done_at (fix do review final)", async ({
+    page,
+  }, testInfo) => {
+    // Mesma limitação de viewport dos testes de drag acima (colunas
+    // empilhadas no mobile-chromium) — aqui o drag nem muda de coluna, mas o
+    // card de destino do reorder também pode não caber na tela visível.
+    test.skip(
+      testInfo.project.name === "mobile-chromium",
+      "drag entre colunas empilhadas verticalmente exige rolar a página durante o gesto — não alcançável sem auto-scroll (fora de escopo)",
+    );
+
+    const stamp = Date.now();
+    const orgName = `E2E Kanban Reorder Org ${stamp}`;
+    const contactName = `E2E Kanban Reorder Contact ${stamp}`;
+    const descriptionA = `E2E Kanban Reorder Task A ${stamp}`;
+    const descriptionB = `E2E Kanban Reorder Task B ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+      const contactUrl = await createContactViaQuickForm(page, {
+        name: contactName,
+        title: "Diretor",
+        email: `e2e.kanban.reorder.${stamp}@example.com`,
+        phone: "11999990006",
+        orgName,
+      });
+      const contactIdMatch = contactUrl.match(/\/contacts\/([0-9a-f-]+)$/);
+      if (!contactIdMatch) throw new Error(`não extraiu o id do contato de ${contactUrl}`);
+      const contactId = contactIdMatch[1];
+
+      // Duas tarefas JÁ concluídas, cada uma com seu próprio done_at
+      // distinto, inseridas direto via DB (a UI não cria tarefa já
+      // concluída) — precisamos de 2 cards na MESMA coluna "Concluída" pra
+      // exercitar um reorder sem nenhuma mudança real de container. O
+      // `commitChange` do primitivo vendorizado (reui/kanban.tsx) só pula
+      // `onValueCommit` quando container E índice ficam inalterados — um
+      // reorder dentro da mesma coluna muda só o índice, então ainda
+      // dispara o callback; sem o early return do fix, `handleCommit`
+      // chamaria `setTaskStatus(taskId, "concluida")` de novo (mesmo status
+      // de origem = destino), reescrevendo `done_at = now()` só por causa de
+      // um drag que não moveu nada entre colunas.
+      const doneAtA = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      const doneAtB = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const futureDue = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const client = await signInAsQaNode();
+      try {
+        const {
+          data: { user },
+        } = await client.auth.getUser();
+        if (!user) throw new Error("signInAsQaNode não retornou user");
+
+        const { data: qaProfile, error: qaProfileError } = await client
+          .from("user_profiles")
+          .select("id")
+          .eq("auth_id", user.id)
+          .single();
+        expect(qaProfileError).toBeNull();
+        const qaProfileId = qaProfile!.id as string;
+
+        const { error: insertAError } = await client.from("tasks").insert({
+          participant_type: "contact",
+          participant_id: contactId,
+          description: descriptionA,
+          due_date: futureDue,
+          assigned_to: qaProfileId,
+          status: "concluida",
+          done_at: doneAtA,
+        });
+        expect(insertAError).toBeNull();
+
+        const { error: insertBError } = await client.from("tasks").insert({
+          participant_type: "contact",
+          participant_id: contactId,
+          description: descriptionB,
+          due_date: futureDue,
+          assigned_to: qaProfileId,
+          status: "concluida",
+          done_at: doneAtB,
+        });
+        expect(insertBError).toBeNull();
+      } finally {
+        await client.auth.signOut({ scope: "local" });
+      }
+
+      await page.goto(TASKS_PATH);
+
+      const cardA = cardLocator(page, COLUMN_CONCLUIDA, descriptionA);
+      const cardB = cardLocator(page, COLUMN_CONCLUIDA, descriptionB);
+      await expect(cardA).toBeVisible();
+      await expect(cardB).toBeVisible();
+
+      // Arrasta A pra cima de B — reorder DENTRO da mesma coluna
+      // "Concluída", nunca cruzando pra outra coluna.
+      await cardA.dragTo(cardB, { steps: 20 });
+
+      // O commit (se disparado incorretamente pela regressão) é assíncrono —
+      // dá tempo pro UPDATE terminar antes de ler o banco, senão o teste
+      // passaria por corrida (lendo antes do write concluir) em vez de por o
+      // fix estar correto.
+      await page.waitForTimeout(1_000);
+
+      const verifyClient = await signInAsQaNode();
+      try {
+        const { data, error } = await verifyClient
+          .from("tasks")
+          .select("description, status, done_at")
+          .in("description", [descriptionA, descriptionB]);
+        expect(error).toBeNull();
+
+        const rowA = data?.find((row) => row.description === descriptionA);
+        const rowB = data?.find((row) => row.description === descriptionB);
+
+        expect(rowA?.status).toBe("concluida");
+        expect(rowB?.status).toBe("concluida");
+        expect(new Date(rowA?.done_at as string).getTime()).toBe(new Date(doneAtA).getTime());
+        expect(new Date(rowB?.done_at as string).getTime()).toBe(new Date(doneAtB).getTime());
+      } finally {
+        await verifyClient.auth.signOut({ scope: "local" });
+      }
+    } finally {
+      await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
+
+  test("arrastar tarefa concluída E atrasada de volta pra 'A Fazer' mostra o selo 'Atrasada' sem recarregar (fix do review final)", async ({
+    page,
+  }, testInfo) => {
+    // Mesma limitação de viewport dos outros testes de drag entre colunas
+    // deste arquivo.
+    test.skip(
+      testInfo.project.name === "mobile-chromium",
+      "drag entre colunas empilhadas verticalmente exige rolar a página durante o gesto — não alcançável sem auto-scroll (fora de escopo)",
+    );
+
+    const stamp = Date.now();
+    const orgName = `E2E Kanban Reopen Overdue Org ${stamp}`;
+    const contactName = `E2E Kanban Reopen Overdue Contact ${stamp}`;
+    const description = `E2E Kanban Reopen Overdue Task ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+      const contactUrl = await createContactViaQuickForm(page, {
+        name: contactName,
+        title: "Diretor",
+        email: `e2e.kanban.reopen.overdue.${stamp}@example.com`,
+        phone: "11999990007",
+        orgName,
+      });
+      const contactIdMatch = contactUrl.match(/\/contacts\/([0-9a-f-]+)$/);
+      if (!contactIdMatch) throw new Error(`não extraiu o id do contato de ${contactUrl}`);
+      const contactId = contactIdMatch[1];
+
+      // Tarefa JÁ concluída E atrasada (due_date no passado, status já
+      // "concluida" desde a inserção) — mesmo padrão do teste "concluída E
+      // atrasada, sem selo" (toggle 'Minhas tarefas'), mas aqui o objetivo é
+      // arrastar ela de volta pra "A Fazer" DEPOIS de carregada e confirmar
+      // que o selo "Atrasada" aparece sem reload. Antes do fix, o servidor
+      // calculava isOverdue/isDueSoon gateando por `status !== "concluida"`
+      // no momento do fetch — uma tarefa carregada já concluída ficava com
+      // isOverdue=false "congelado" no card, e arrastá-la de volta pra uma
+      // coluna pendente não recalculava nada no cliente (o gate de coluna em
+      // tasks-kanban.tsx só ESCONDE um sinal true quando a coluna atual é
+      // "Concluída"; não inventa um sinal que nunca existiu).
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const client = await signInAsQaNode();
+      try {
+        const {
+          data: { user },
+        } = await client.auth.getUser();
+        if (!user) throw new Error("signInAsQaNode não retornou user");
+
+        const { data: qaProfile, error: qaProfileError } = await client
+          .from("user_profiles")
+          .select("id")
+          .eq("auth_id", user.id)
+          .single();
+        expect(qaProfileError).toBeNull();
+
+        const { error: insertError } = await client.from("tasks").insert({
+          participant_type: "contact",
+          participant_id: contactId,
+          description,
+          due_date: past,
+          assigned_to: qaProfile!.id as string,
+          status: "concluida",
+          done_at: past,
+        });
+        expect(insertError).toBeNull();
+      } finally {
+        await client.auth.signOut({ scope: "local" });
+      }
+
+      await page.goto(TASKS_PATH);
+
+      const cardInConcluida = cardLocator(page, COLUMN_CONCLUIDA, description);
+      await expect(cardInConcluida).toBeVisible();
+      // Concluída: nenhum selo, mesmo atrasada de verdade (ver teste do
+      // toggle "Minhas tarefas" acima, mesmo comportamento).
+      await expect(cardInConcluida.getByText("Atrasada")).toHaveCount(0);
+
+      const aFazerColumn = page.getByRole("region", { name: COLUMN_A_FAZER });
+      const cardInAFazer = cardLocator(page, COLUMN_A_FAZER, description);
+      await dragCardTo(cardInConcluida, aFazerColumn, cardInAFazer);
+
+      // De volta em "A Fazer": o selo "Atrasada" precisa aparecer AGORA, sem
+      // reload — prova de que isOverdue é um sinal puro (due_date vs. agora)
+      // calculado uma vez no servidor, nunca zerado permanentemente por ter
+      // passado por "Concluída" (Fix 4 do review final).
+      await expect(cardInAFazer.getByText("Atrasada")).toBeVisible();
+    } finally {
+      await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
 });

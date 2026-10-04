@@ -199,7 +199,7 @@ ambiente de sempre, não só as 2 de QA — sem `NEXT_PUBLIC_SUPABASE_URL`/
 controller numa tarefa anterior desta mesma branch de Tarefas — não
 repetir).
 
-Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD='@Bvcap2026' NEXT_PUBLIC_SUPABASE_URL=<valor de .env.local> NEXT_PUBLIC_SUPABASE_ANON_KEY=<valor de .env.local> npx playwright test e2e/tasks.spec.ts --reporter=line`
+Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD="$E2E_QA_PASSWORD" NEXT_PUBLIC_SUPABASE_URL=<valor de .env.local> NEXT_PUBLIC_SUPABASE_ANON_KEY=<valor de .env.local> npx playwright test e2e/tasks.spec.ts --reporter=line`
 Expected: todos os testes já existentes (ciclo completo a partir de
 Contato/Organização, limpeza órfã) continuam passando — isso é o teste
 de regressão do checkbox migrado pra `setTaskStatus` (ver Review
@@ -268,7 +268,7 @@ mockado já usado em outros testes), confirma que o card some da tela.
 
 - [ ] **Step 2: Rodar e confirmar que falha pelo motivo certo**
 
-Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD='@Bvcap2026' NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
+Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD="$E2E_QA_PASSWORD" NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
 Expected: FAIL — a rota `/tasks` ainda não existe (404).
 
 - [ ] **Step 3: Implementar a página `src/app/[locale]/(app)/tasks/page.tsx`**
@@ -407,7 +407,7 @@ vivem).
 
 - [ ] **Step 7: Rodar o teste da Step 1 e confirmar que passa**
 
-Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD='@Bvcap2026' NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
+Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD="$E2E_QA_PASSWORD" NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
 Expected: PASS
 
 - [ ] **Step 8: Escrever e rodar o teste de coluna vazia e nome misto (Review Focus)**
@@ -466,7 +466,7 @@ Expected: todos os testes do arquivo passam.
 
 - [ ] **Step 10: Suíte E2E completa**
 
-Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD='@Bvcap2026' NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test --reporter=line`
+Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD="$E2E_QA_PASSWORD" NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test --reporter=line`
 Expected: suíte inteira passa — nenhuma regressão em nenhum outro spec
 (a sidebar ganhou um item novo, `tasks.spec.ts` continua intocado desde
 a Task 1).

@@ -76,6 +76,15 @@ export function TasksKanban({
     meta: KanbanCommitMeta<TaskCard>,
   ) {
     if (meta.kind !== "item") return;
+    // Reordenar dentro da MESMA coluna (sem mudança de status real) ainda
+    // dispara onValueCommit — o commitChange do primitivo vendorizado só
+    // pula o callback quando container E índice ficam inalterados. Sem este
+    // early return, `setTaskStatus(taskId, newStatus)` seria chamado com
+    // `newStatus` igual ao status atual do card, reescrevendo `done_at =
+    // now()` só por causa de um drag que não moveu nada entre colunas (acha
+    // do review final) — isso reordenaria silenciosamente a lista de
+    // concluídas em TasksList, que ordena por `done_at` descendente.
+    if (meta.activeContainer === meta.overContainer) return;
 
     const taskId = String(meta.event.active.id);
     const newStatus = meta.overContainer as TaskStatus;
