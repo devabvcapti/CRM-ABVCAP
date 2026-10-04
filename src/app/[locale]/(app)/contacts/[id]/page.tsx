@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/current-profile";
 import { fetchEntityOrNull } from "@/lib/supabase/fetch-entity-or-not-found";
 import { OrganizationLinks, type OrganizationLinkRow } from "../organization-links";
 import { InteractionsTimeline, type InteractionRow } from "@/components/shared/interactions-timeline";
+import { TasksList, type TaskRow } from "@/components/shared/tasks-list";
 import { ContactEditDelete } from "./contact-edit-delete";
 import { ContactTags } from "./contact-tags";
 import type { Database } from "@/types/database";
@@ -38,6 +40,8 @@ export default async function ContactDetailPage({
     { data: orgLinks },
     { data: organizations },
     { data: participantRows },
+    { data: taskRows },
+    { data: userProfiles },
   ] = await Promise.all([
     supabase
       .from("entity_tags")
@@ -56,7 +60,27 @@ export default async function ContactDetailPage({
       .select("interactions(id, type, occurred_at, summary, classification_level)")
       .eq("participant_type", "contact")
       .eq("participant_id", id),
+    // tasks também tem created_by -> user_profiles (0008_crm_tasks.sql) —
+    // sem o hint de FK, o embed de user_profiles(name) é ambíguo pro
+    // PostgREST (duas relações possíveis pra mesma tabela).
+    supabase
+      .from("tasks")
+      .select(
+        "id, description, due_date, assigned_to, done_at, user_profiles!tasks_assigned_to_fkey(name)",
+      )
+      .eq("participant_type", "contact")
+      .eq("participant_id", id),
+    // Lista completa de atribuíveis — sem filtro de papel, qualquer perfil
+    // pode ser atribuído a uma tarefa.
+    supabase.from("user_profiles").select("id, name").order("name", { ascending: true }),
   ]);
+
+  const profile = await getCurrentProfile();
+  // (app)/layout.tsx já redireciona pra /login antes de qualquer página
+  // aninhada renderizar se não houver perfil — este notFound() é só pra
+  // satisfazer o TypeScript (getCurrentProfile() retorna `| null`), nunca
+  // deve disparar de verdade em uso normal.
+  if (!profile) notFound();
 
   const tags = (tagLinks ?? [])
     .map((link) => {
@@ -79,6 +103,17 @@ export default async function ContactDetailPage({
     .map((row) => row.interactions as InteractionRow | null)
     .filter((interaction): interaction is InteractionRow => Boolean(interaction))
     .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
+
+  const tasks: TaskRow[] = (taskRows ?? []).map((row) => ({
+    id: row.id,
+    description: row.description,
+    due_date: row.due_date,
+    assigned_to: row.assigned_to,
+    assigned_to_name: (row.user_profiles as { name: string } | null)?.name ?? "",
+    done_at: row.done_at,
+  }));
+
+  const assignableProfiles = userProfiles ?? [];
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -128,6 +163,14 @@ export default async function ContactDetailPage({
           <ContactTags contactId={id} tags={tags} allTags={allTags ?? []} />
 
           <OrganizationLinks contactId={id} links={organizationLinks} organizations={organizations ?? []} />
+
+          <TasksList
+            participantType="contact"
+            participantId={id}
+            tasks={tasks}
+            assignableProfiles={assignableProfiles}
+            currentProfileId={profile.id}
+          />
         </div>
       </div>
     </div>

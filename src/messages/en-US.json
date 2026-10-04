@@ -111,6 +111,22 @@
     "classificationConfidential": "Confidential",
     "classificationRestricted": "Restricted"
   },
+  "TasksList": {
+    "title": "Tasks",
+    "empty": "No task logged yet.",
+    "fieldDescription": "Description",
+    "fieldDueDate": "Due date",
+    "fieldAssignedTo": "Assigned to",
+    "selectPlaceholder": "Select",
+    "add": "Add task",
+    "submitting": "Saving…",
+    "errorRequiredDescription": "Enter the description.",
+    "errorRequiredDueDate": "Enter the due date.",
+    "errorRequiredAssignedTo": "Select who it's assigned to.",
+    "errorGeneric": "Could not save. Please try again.",
+    "deleteConfirm": "Are you sure you want to delete this task?",
+    "deleteLabel": "Delete task {description}"
+  },
   "OrganizationsPage": {
     "title": "Organizations",
     "newButton": "New organization",
