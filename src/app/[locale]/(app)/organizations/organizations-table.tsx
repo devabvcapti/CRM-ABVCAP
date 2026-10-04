@@ -85,6 +85,7 @@ export function OrganizationsTable({
     sort,
     dir,
     setFilterState,
+    updateFilterKey,
     setPage,
     setPageSize,
     setSorting,
@@ -158,7 +159,29 @@ export function OrganizationsTable({
   }, [searchInput, setFilterState]);
 
   function updateFilter(key: keyof OrganizationFilterState, value: string | undefined) {
-    setFilterState({ ...filterState, [key]: value });
+    // Nunca espalha o `filterState` do componente (pode ser uma closure
+    // obsoleta de um render anterior) — `updateFilterKey` navega direto a
+    // partir da URL viva, então cliques rápidos em dropdowns diferentes não
+    // se revertem um ao outro. Ver comentário em updateFilterKey no hook.
+    updateFilterKey(key, value);
+  }
+
+  // Aplicar um filtro salvo é um replace TOTAL do filter_state — diferente
+  // de updateFilter (uma tecla por vez) — então usar setFilterState aqui
+  // está correto. Mas precisa também forçar searchInput/lastPushedSearch/
+  // syncedUrlSearch pro valor aplicado, incondicionalmente: se o usuário já
+  // tinha editado o campo localmente (ex.: `fill("")`) sem o debounce ainda
+  // ter disparado, e o filtro salvo tem o MESMO `search` que já estava na
+  // URL, o bloco de reconciliação no render (abaixo) nunca dispara (o valor
+  // de filterState.search não muda) e o campo ficaria preso no valor local
+  // não commitado. Ver bug reproduzido em e2e/contacts.spec.ts (mesmo padrão
+  // copiado aqui).
+  function applySavedFilter(next: OrganizationFilterState) {
+    setFilterState(next);
+    const nextSearch = next.search ?? "";
+    setSearchInput(nextSearch);
+    setLastPushedSearch(next.search);
+    setSyncedUrlSearch(next.search);
   }
 
   function handlePaginationChange(updater: Updater<PaginationState>) {
@@ -387,7 +410,7 @@ export function OrganizationsTable({
         entityType="organization"
         savedFilters={savedFilters}
         currentFilterState={filterState}
-        onApply={setFilterState}
+        onApply={applySavedFilter}
       />
 
       <EntityDataGrid
