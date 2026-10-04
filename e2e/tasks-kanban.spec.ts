@@ -176,6 +176,92 @@ test.describe("quadro Kanban de Tarefas", () => {
     }
   });
 
+  test("arrastar tarefa atrasada pra 'Concluída' esconde o selo 'Atrasada' sem recarregar a página", async ({
+    page,
+  }, testInfo) => {
+    // Mesma limitação de viewport do teste de drag acima (colunas
+    // empilhadas no mobile-chromium não cabem lado a lado) — ver comentário
+    // completo no primeiro teste deste arquivo.
+    test.skip(
+      testInfo.project.name === "mobile-chromium",
+      "drag entre colunas empilhadas verticalmente exige rolar a página durante o gesto — não alcançável sem auto-scroll (fora de escopo)",
+    );
+
+    const stamp = Date.now();
+    const orgName = `E2E Kanban Overdue Drag Org ${stamp}`;
+    const contactName = `E2E Kanban Overdue Drag Contact ${stamp}`;
+    const description = `E2E Kanban Overdue Drag Task ${stamp}`;
+
+    try {
+      await createOrg(page, orgName);
+      const contactUrl = await createContactViaQuickForm(page, {
+        name: contactName,
+        title: "Diretor",
+        email: `e2e.kanban.overdue.drag.${stamp}@example.com`,
+        phone: "11999990005",
+        orgName,
+      });
+      const contactIdMatch = contactUrl.match(/\/contacts\/([0-9a-f-]+)$/);
+      if (!contactIdMatch) throw new Error(`não extraiu o id do contato de ${contactUrl}`);
+      const contactId = contactIdMatch[1];
+
+      // UI não permite due_date no passado — insere via Node (mesmo padrão
+      // do teste de toggle/selos acima) já atrasada e em "A Fazer", pra
+      // isolar especificamente a TRANSIÇÃO "A Fazer" -> "Concluída" via
+      // drag (diferente do outro teste, que insere direto com
+      // status="concluida" e nunca exercita `handleCommit`/o card
+      // trocando de coluna em tempo de execução).
+      const client = await signInAsQaNode();
+      try {
+        const {
+          data: { user },
+        } = await client.auth.getUser();
+        if (!user) throw new Error("signInAsQaNode não retornou user");
+
+        const { data: qaProfile, error: qaProfileError } = await client
+          .from("user_profiles")
+          .select("id")
+          .eq("auth_id", user.id)
+          .single();
+        expect(qaProfileError).toBeNull();
+
+        const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { error: insertError } = await client.from("tasks").insert({
+          participant_type: "contact",
+          participant_id: contactId,
+          description,
+          due_date: past,
+          assigned_to: qaProfile!.id as string,
+          status: "a_fazer",
+        });
+        expect(insertError).toBeNull();
+      } finally {
+        await client.auth.signOut({ scope: "local" });
+      }
+
+      await page.goto(TASKS_PATH);
+
+      const cardInAFazer = cardLocator(page, COLUMN_A_FAZER, description);
+      await expect(cardInAFazer).toBeVisible();
+      await expect(cardInAFazer.getByText("Atrasada")).toBeVisible();
+
+      const concluidaColumn = page.getByRole("region", { name: COLUMN_CONCLUIDA });
+      const cardInConcluida = cardLocator(page, COLUMN_CONCLUIDA, description);
+      await dragCardTo(cardInAFazer, concluidaColumn, cardInConcluida);
+
+      // Regressão: `isOverdue`/`isDueSoon` são calculados uma vez no
+      // servidor a partir só de `due_date` (nunca mutados no cliente) — sem
+      // o gate por coluna ATUAL em tasks-kanban.tsx, o selo "Atrasada"
+      // ficaria visível aqui até um reload completo da página, mesmo a
+      // tarefa já estando em "Concluída" (achado do code review).
+      await expect(cardInConcluida.getByText("Atrasada")).toHaveCount(0);
+      await expect(cardInConcluida.getByText("Vence em breve")).toHaveCount(0);
+    } finally {
+      await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
+      await deleteRowIfExists(page, ORG_LIST_PATH, orgName);
+    }
+  });
+
   test("quadro mostra tarefas de Contato e Organização lado a lado, com o nome certo cada uma", async ({
     page,
   }) => {

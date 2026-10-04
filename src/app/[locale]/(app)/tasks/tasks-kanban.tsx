@@ -181,9 +181,20 @@ export function TasksKanban({
                           <p className="text-foreground">{card.description}</p>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span>{new Date(card.due_date).toLocaleString()}</span>
-                            {card.isOverdue ? (
+                            {/* `isOverdue`/`isDueSoon` são calculados uma vez no
+                                servidor a partir só de `due_date` (sinal puro,
+                                nunca mutado no cliente) — a coluna ATUAL
+                                (`status`, a fonte de verdade de onde o card
+                                está depois de um drag) decide se esse sinal
+                                aparece. Sem o gate por coluna, arrastar uma
+                                tarefa atrasada pra "Concluída" deixaria o selo
+                                "Atrasada" visível ali até um reload (e
+                                arrastar de volta pra fora de "Concluída"
+                                precisaria desse MESMO sinal continuar
+                                correto, não zerado permanentemente). */}
+                            {status !== "concluida" && card.isOverdue ? (
                               <Badge variant="destructive">{t("urgencyOverdue")}</Badge>
-                            ) : card.isDueSoon ? (
+                            ) : status !== "concluida" && card.isDueSoon ? (
                               <Badge variant="outline">{t("urgencyDueSoon")}</Badge>
                             ) : null}
                           </div>
