@@ -14,6 +14,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { addTagToContact, removeTagFromContact } from "../actions";
+import { getTagColorClassName } from "@/lib/tag-colors";
 
 type TagOption = { id: string; name: string };
 
@@ -162,7 +163,7 @@ export function ContactTags({
         <ul className="flex flex-wrap gap-2">
           {tags.map((tag) => (
             <li key={tag.entityTagId}>
-              <Badge variant="secondary" className="gap-1 pr-1">
+              <Badge variant="secondary" className={`gap-1 pr-1 ${getTagColorClassName(tag.name)}`}>
                 {tag.name}
                 <Button
                   type="button"
