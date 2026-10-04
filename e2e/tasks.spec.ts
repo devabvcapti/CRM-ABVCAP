@@ -187,7 +187,22 @@ test.describe("tarefas", () => {
         { db: { schema: "crm_abvcap" } },
       );
       try {
-        await client.auth.signInWithPassword({ email: QA_EMAIL, password: QA_PASSWORD });
+        // Assert duro no resultado do sign-in: se ele falhar silenciosamente
+        // (senha QA rotacionada, rate-limit, erro de rede transiente), o
+        // client cai pro papel `anon`. `tasks` não tem policy pra `anon`
+        // (só `tasks_select_authenticated ... to authenticated`), então com
+        // RLS habilitada e nenhuma policy aplicável o Postgres nega por
+        // padrão — a query abaixo devolveria `{ data: [], error: null }`
+        // mesmo com uma linha órfã de verdade ainda lá, fazendo o teste
+        // passar vacuamente e reintroduzindo (via falha de login, não mais
+        // via FK ausente) o mesmo defeito "não distingue sucesso de falha
+        // silenciosa" que esta correção existe pra eliminar.
+        const { error: signInError } = await client.auth.signInWithPassword({
+          email: QA_EMAIL,
+          password: QA_PASSWORD,
+        });
+        expect(signInError).toBeNull();
+
         const { data, error } = await client
           .from("tasks")
           .select("id")
@@ -196,7 +211,12 @@ test.describe("tarefas", () => {
         expect(error).toBeNull();
         expect(data).toHaveLength(0);
       } finally {
-        await client.auth.signOut();
+        // scope: "local" — o default ("global") revogaria TODAS as sessões
+        // do usuário QA, incluindo a sessão de browser que loginAsQa já
+        // estabeleceu em `page` (e potencialmente a de outros testes
+        // rodando contra a mesma conta QA compartilhada). Só este client
+        // Node-side precisa deslogar.
+        await client.auth.signOut({ scope: "local" });
       }
     } finally {
       await deleteRowIfExists(page, CONTACT_LIST_PATH, contactName);
