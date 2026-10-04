@@ -8,3 +8,13 @@
 alter table crm_abvcap.tasks
   add column status text not null default 'a_fazer'
     check (status in ('a_fazer', 'em_andamento', 'concluida'));
+
+-- Backfill: tarefas já concluídas (done_at não-nulo) via o checkbox
+-- pré-existente (setTaskDone, sub-projeto 1) foram inseridas quando status
+-- ainda não existia, então a coluna acima as preenche com o default
+-- 'a_fazer' — inconsistente com a própria premissa de que done_at é
+-- DERIVADO de status (ver comentário acima e setTaskStatus em
+-- src/lib/actions/tasks.ts). Sem este update, o quadro Kanban (sub-projeto
+-- 2 de 4, que lê status como fonte da verdade) mostraria essas tarefas na
+-- coluna errada ("A Fazer" em vez de "Concluída").
+update crm_abvcap.tasks set status = 'concluida' where done_at is not null;
