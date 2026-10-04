@@ -37,6 +37,18 @@ pendente/concluída). Um quadro Kanban útil precisa de mais granularidade.
 - **Mutação otimista**: arrastar um card atualiza a tela na hora, antes
   da confirmação do servidor; se a escrita falhar, desfaz visualmente e
   mostra erro (mesmo padrão de alerta já usado no resto do projeto).
+- **Adição pós-aprovação inicial** (pedido do dono do projeto depois do
+  design acima já aprovado, antes da escrita do plano): duas adições
+  pequenas, deliberadamente as únicas aceitas nesta leva — qualquer
+  outra forma de granularidade (mais colunas/estágios, prioridade,
+  rótulos, limite de WIP por coluna) continua fora de escopo, avaliada
+  só depois desta entrega com uso real:
+  - **Indicador visual de atraso/vencimento** no card — zero mudança de
+    schema, só leitura de `due_date` já existente.
+  - **Toggle "Minhas tarefas"** na página `/tasks` — contradiz a decisão
+    "sem filtro por padrão" acima só nesse ponto específico; o padrão
+    (toggle desligado, mostra tudo) continua o mesmo. Viável a custo
+    baixo porque `assigned_to` já existe na tabela desde o sub-projeto 1.
 
 ## Arquitetura
 
@@ -101,6 +113,29 @@ Kanban fica fora de escopo** — exigiria um seletor de participante
 (Contato ou Organização) que não existe em lugar nenhum hoje; criar
 continua só a partir da página de detalhe de cada um.
 
+**Indicador visual de atraso/vencimento** (adição pós-aprovação, ver
+acima): cada card, se `status !== 'concluida'`, compara `due_date` com
+o momento da renderização e mostra um selo — "Atrasada" se `due_date`
+já passou, "Vence em breve" se falta até 24h. Tarefa concluída nunca
+mostra selo, independente da data (não há "atraso" a sinalizar em algo
+já resolvido). Calculado uma vez no Server Component (`/tasks`,
+mesmo momento em que o restante do card é montado) — aceita a mesma
+defasagem natural de qualquer dado já renderizado no projeto (atualiza
+na próxima revalidação/reload, sem polling ou timer client-side, que
+seria escopo novo não pedido).
+
+**Toggle "Minhas tarefas"** (adição pós-aprovação, ver acima): controle
+client-side acima do quadro, desligado por padrão. Ligado, esconde
+(visualmente, sem remover do estado controlado do `Kanban`) os cards
+cujo `assigned_to` não é o perfil logado (`getCurrentProfile()`, já
+usado desde o sub-projeto 1). Decisão deliberada: o filtro não altera o
+`value` passado ao primitivo `Kanban` nem a lógica de `onValueChange`/
+`onValueCommit` — arrastar continua operando sobre o conjunto completo
+de tarefas exatamente como sem o toggle, só a apresentação visual de
+cada card muda. Evita reabrir a mecânica de drag-and-drop (já
+cuidadosamente desenhada acima) por uma feature que é puramente de
+visualização.
+
 ## Fluxo de dados e testes
 
 Nenhuma mudança de RLS. Nenhuma mudança na tabela `tasks` além da coluna
@@ -120,8 +155,14 @@ Testes:
 
 ## Fora de escopo
 
-- Filtro por responsável ("minhas tarefas") ou qualquer outro filtro na
-  página `/tasks` — mostra tudo, sempre, nesta leva.
+- Qualquer filtro na página `/tasks` além do toggle "Minhas tarefas"
+  descrito acima (ex.: busca por texto, filtro por data, por
+  participante específico) — essa é a única exceção à regra "mostra
+  tudo, sempre" nesta leva.
+- Mais estágios/colunas (ex.: "Bloqueada", "Em Revisão"), prioridade,
+  rótulos, limite de WIP por coluna, ou qualquer outra forma de
+  granularidade do quadro — avaliado depois desta entrega com uso real,
+  não antecipado agora.
 - Reordenar tarefas DENTRO da mesma coluna (só a coluna/status importa;
   se o componente permitir reordenar visualmente dentro da coluna, isso
   não precisa persistir em nenhum campo novo — não existe conceito de

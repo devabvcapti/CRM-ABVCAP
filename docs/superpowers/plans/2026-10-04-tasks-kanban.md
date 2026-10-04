@@ -38,7 +38,18 @@ vendorizado), Playwright.
 - Editar uma tarefa a partir do card fica fora de escopo (mesma regra
   desde o sub-projeto 1) — só mudar status (arrastar) e excluir.
 - Filtro por responsável ou qualquer outro filtro na página `/tasks`
-  fica fora de escopo — mostra todas as tarefas, sempre.
+  fica fora de escopo, **exceto** o toggle "Minhas tarefas" (Task 2) —
+  o resto mostra todas as tarefas, sempre.
+- Toggle "Minhas tarefas" (adição pós-spec, pedida depois do plano
+  inicial estar rascunhado) é puramente visual: filtra o que é
+  renderizado, nunca o `value` controlado passado ao primitivo `Kanban`
+  nem a lógica de `onValueChange`/`onValueCommit` — arrastar continua
+  operando sobre o conjunto completo de tarefas com o toggle ligado ou
+  desligado. Desligado por padrão.
+- Indicador de atraso/vencimento (mesma adição pós-spec) é calculado
+  uma vez no Server Component no momento do fetch — sem polling/timer
+  client-side, mesma defasagem natural de qualquer outro dado já
+  renderizado no projeto.
 - Próxima migration: `0009`.
 - i18n: toda string nova pareada em `src/messages/pt-BR.json`/
   `en-US.json`, nenhum texto hardcoded.
@@ -78,6 +89,18 @@ vendorizado), Playwright.
   partir de Contato/Organização) já exercitam esse caminho; a Task 1
   precisa confirmar que continuam passando, não escrever um teste novo
   pra isso.
+- **Toggle "Minhas tarefas" não pode mudar o resultado de um drag**:
+  como o filtro é só visual (ver Global Constraints), o `value` do
+  `Kanban` precisa continuar sendo `columns` inteiro, nunca uma versão
+  filtrada — passar a versão filtrada pro `value` faria o componente
+  "esquecer" os cards escondidos e perdê-los do estado ao mover
+  qualquer outro card. Testado na Task 2 (arrastar um card com o toggle
+  ligado não faz nenhum card desaparecer do quadro).
+- **Selo de atraso não pode aparecer numa tarefa concluída**: calcular
+  `isOverdue`/`isDueSoon` sem checar `status === 'concluida'` primeiro
+  marcaria como "atrasada" uma tarefa cujo prazo passou mas que já foi
+  resolvida — sinal falso que mina a confiança no indicador. Testado na
+  Task 2.
 
 ---
 
@@ -268,15 +291,39 @@ Component.
 
 `TaskCard` (tipo exportado deste arquivo ou de `tasks-kanban.tsx`, à
 escolha do implementador, mas usado em ambos): `{ id: string;
-description: string; due_date: string; assignedToName: string;
-participantType: "contact" | "organization"; participantId: string;
-participantName: string }`.
+description: string; due_date: string; assignedToId: string;
+assignedToName: string; participantType: "contact" | "organization";
+participantId: string; participantName: string; isOverdue: boolean;
+isDueSoon: boolean }`. `assignedToId` é o `assigned_to` bruto da
+tarefa (precisa estar no `select` da Step anterior, mesmo que não fosse
+usado antes desta adição) — necessário pro toggle "Minhas tarefas" da
+Step 4 comparar contra o perfil logado, já que `assignedToName` não é
+uma chave estável. `isOverdue`/`isDueSoon` são calculados aqui, ao
+montar cada `TaskCard`, com `status !== "concluida"` como primeira
+condição (ver Review Focus — selo de atraso numa tarefa concluída):
+`isOverdue = status !== "concluida" && new Date(due_date) < now`;
+`isDueSoon = status !== "concluida" && !isOverdue && new Date(due_date).getTime() - now.getTime() <= 24 * 60 * 60 * 1000`
+(`now = new Date()`, uma vez só no topo da função, não recalculado por
+tarefa).
+
+Busca também o perfil logado (`getCurrentProfile()`, já usado no
+sub-projeto 1 pra pré-selecionar o responsável no form de criar
+tarefa) e passa `currentProfileId: profile.id` como prop adicional pro
+Client Component — usado só pelo toggle "Minhas tarefas" da Step 4.
 
 - [ ] **Step 4: Implementar o Client Component `src/app/[locale]/(app)/tasks/tasks-kanban.tsx`**
 
-Recebe `columns: Record<TaskStatus, TaskCard[]>` como prop inicial,
-mantém em `useState` local (precisa ser mutável pro `onValueChange`
-otimista do `Kanban`). Usa `Kanban<TaskCard> value={columns}
+Recebe `columns: Record<TaskStatus, TaskCard[]>` e `currentProfileId:
+string` como props iniciais. `columns` vai pro `useState` local
+(precisa ser mutável pro `onValueChange` otimista do `Kanban`).
+Separado, um segundo `useState<boolean>(false)` pro toggle "Minhas
+tarefas" (`onlyMine`/`setOnlyMine`, desligado por padrão — Global
+Constraint). **Importante**: `value` passado ao `Kanban` é sempre
+`columns` inteiro, nunca uma versão filtrada por `onlyMine` (ver Global
+Constraint e Review Focus — toggle não pode mudar o resultado de um
+drag); o filtro entra só na hora de renderizar cada `KanbanItem` dentro
+de `KanbanColumnContent` (Step abaixo), nunca no dado que o `Kanban`
+controla. Usa `Kanban<TaskCard> value={columns}
 onValueChange={setColumns} getItemValue={(card) => card.id}
 onValueCommit={handleCommit}`, onde `handleCommit(value, meta)`: se
 `meta.kind !== "item"`, retorna sem fazer nada (colunas não são
@@ -309,6 +356,22 @@ conforme `participantType`), e um botão de excluir chamando
 também (não basta confiar só na revalidação de rota, já que o estado
 do Kanban é local/controlado).
 
+Se `onlyMine && card.assignedToId !== currentProfileId`, o
+`KanbanItem` desse card renderiza `null` em vez do conteúdo normal
+(esconde visualmente, não remove de `columns`/do `value` do `Kanban` —
+ver nota na abertura deste Step).
+
+Selo de atraso/vencimento (`Badge` de `@/components/ui/badge`, mesmo
+componente já usado em outros lugares do projeto pra badges de
+status): se `card.isOverdue`, `<Badge variant="destructive">
+{t("urgencyOverdue")}</Badge>` ao lado do prazo formatado; senão, se
+`card.isDueSoon`, um badge equivalente com `variant="outline"` e
+`t("urgencyDueSoon")`; se nenhum dos dois, nenhum badge.
+
+Acima do quadro (fora de qualquer `KanbanColumn`), um `Switch` (`@/
+components/ui/switch`) controlado por `onlyMine`/`setOnlyMine`, com
+label `t("onlyMineToggle")` ao lado.
+
 Nenhuma coluna ganha `KanbanColumnHandle` (Global Constraint — colunas
 não são arrastáveis).
 
@@ -336,9 +399,11 @@ compartilhadas entre os dois componentes se estiverem no mesmo
 namespace) em `src/messages/pt-BR.json`/`en-US.json`, pareado. Chaves
 mínimas necessárias: `title` (título da página), `columnAFazer`,
 `columnEmAndamento`, `columnConcluida` (rótulos das 3 colunas),
-`fieldAssignedTo` ou reuso do já existente, mais `navTasks` em
-`AppShell` (namespace onde `navDashboard`/`navContacts`/
-`navOrganizations` já vivem).
+`fieldAssignedTo` ou reuso do já existente, `onlyMineToggle` (label do
+toggle "Minhas tarefas"), `urgencyOverdue` ("Atrasada"),
+`urgencyDueSoon` ("Vence em breve"), mais `navTasks` em `AppShell`
+(namespace onde `navDashboard`/`navContacts`/`navOrganizations` já
+vivem).
 
 - [ ] **Step 7: Rodar o teste da Step 1 e confirmar que passa**
 
@@ -363,19 +428,55 @@ sem nenhum card dentro, à sua escolha.
 Run: `npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
 Expected: todos os testes do arquivo passam.
 
-- [ ] **Step 9: Suíte E2E completa**
+- [ ] **Step 9: Escrever e rodar o teste do toggle "Minhas tarefas" e dos selos de atraso/vencimento (Review Focus)**
+
+Duas inserções diretas via o client Node `@supabase/supabase-js` (mesma
+técnica já usada neste arquivo pra verificação, aqui usada pra
+inserção — necessário porque a UI não tem como setar `due_date` no
+passado nem `assigned_to` pra outro perfil que não o pré-selecionado, e
+`status` só muda por drag):
+1. Uma tarefa vinculada ao mesmo Contato do Step 1, `assigned_to` de
+   QUALQUER `user_profiles.id` diferente do perfil de QA (consulta
+   `user_profiles` pelo mesmo client, filtra `id != <id do perfil de
+   QA>`, pega o primeiro — o projeto já tem múltiplos perfis seed pros
+   testes de RLS por papel, não precisa criar um novo), `due_date` no
+   futuro, `status = 'a_fazer'`.
+2. Uma tarefa vinculada ao mesmo Contato, `assigned_to` do perfil de
+   QA, `due_date` no passado (`now - 1 dia`), `status = 'concluida'`
+   (concluída E atrasada — é exatamente o caso do Review Focus "selo
+   não pode aparecer numa tarefa concluída").
+
+Teste `"toggle 'Minhas tarefas' esconde tarefa de outro responsável;
+selo de atraso não aparece em tarefa concluída"`: navega pra `/tasks`
+(toggle desligado por padrão) — confirma que o card da tarefa 1
+(outro responsável) está visível e que o card da tarefa 2 (concluída
++ atrasada) não mostra nenhum selo "Atrasada"/"Vence em breve". Liga o
+toggle — confirma que o card da tarefa 1 desaparece. Desliga de volta —
+confirma que reaparece (prova que o toggle é reversível e que
+`columns` nunca perdeu a tarefa, só escondeu visualmente — ver Review
+Focus "toggle não pode mudar o resultado de um drag").
+
+Terceira inserção pro selo "Atrasada" sozinho: tarefa vinculada ao
+Contato, `assigned_to` do perfil de QA, `due_date` no passado, `status
+= 'a_fazer'` (atrasada, não concluída) — recarrega `/tasks`, confirma
+que o card mostra o selo `t("urgencyOverdue")`.
+
+Run: `npx playwright test e2e/tasks-kanban.spec.ts --project=chromium --reporter=line`
+Expected: todos os testes do arquivo passam.
+
+- [ ] **Step 10: Suíte E2E completa**
 
 Run: `E2E_QA_EMAIL='qa@abvcap.com.br' E2E_QA_PASSWORD='@Bvcap2026' NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npx playwright test --reporter=line`
 Expected: suíte inteira passa — nenhuma regressão em nenhum outro spec
 (a sidebar ganhou um item novo, `tasks.spec.ts` continua intocado desde
 a Task 1).
 
-- [ ] **Step 10: Lint e build**
+- [ ] **Step 11: Lint e build**
 
 Run: `npm run lint && npm run build`
 Expected: ambos limpos.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add src/app/"[locale]"/"(app)"/tasks e2e/tasks-kanban.spec.ts src/components/app-sidebar.tsx src/app/"[locale]"/"(app)"/layout.tsx src/messages/pt-BR.json src/messages/en-US.json
